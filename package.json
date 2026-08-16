@@ -1,0 +1,15 @@
+{
+  "name": "wolfmoon",
+  "version": "1.0.0",
+  "description": "Wolfmoon Node.js project",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
