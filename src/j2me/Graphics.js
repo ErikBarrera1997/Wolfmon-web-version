@@ -87,8 +87,16 @@ export class Graphics {
     else c.stroke();
   }
 
-  drawImage(img, x, y) {
+  drawImage(img, x, y, anchor) {
     const src = img && img.canvas ? img.canvas : img;
+    if (anchor != null && anchor !== 0) {
+      const w = img && img.width != null ? img.width : src.width;
+      const h = img && img.height != null ? img.height : src.height;
+      if (anchor & RIGHT) x -= w;
+      else if (anchor & HCENTER) x -= w >> 1;
+      if (anchor & BOTTOM) y -= h;
+      else if (anchor & VCENTER) y -= h >> 1;
+    }
     this.ctx.drawImage(src, x, y);
   }
 

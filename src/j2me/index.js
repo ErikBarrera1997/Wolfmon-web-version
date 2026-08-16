@@ -24,6 +24,7 @@ export {
   measureWidth,
 } from './Font.js';
 export { Image } from './Image.js';
+export { DataInputStream } from './DataInputStream.js';
 export { RecordStore } from './RecordStore.js';
 export { Manager, Player, VolumeControl } from '../../audio/manager.js';
 export {

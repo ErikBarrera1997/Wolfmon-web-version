@@ -57,3 +57,23 @@ test('GET /missing-file returns 404', async () => {
     assert.equal(response.status, 404);
   });
 });
+
+test('GET /assets/h serves the catalog blob', async () => {
+  await withServer(async (server) => {
+    const response = await request(server, '/assets/h');
+    const body = await response.arrayBuffer();
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /octet-stream/);
+    assert.equal(body.byteLength, 734);
+  });
+});
+
+test('GET /assets/ad.png serves a sprite image', async () => {
+  await withServer(async (server) => {
+    const response = await request(server, '/assets/ad.png');
+    const body = await response.arrayBuffer();
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /image\/png/);
+    assert.ok(body.byteLength > 0);
+  });
+});
