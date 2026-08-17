@@ -1,4 +1,4 @@
-import { Manager } from '../audio/manager.js';
+import { Manager } from '../../audio/manager.js';
 
 let enabled = true;
 let sounds = new Array(0);

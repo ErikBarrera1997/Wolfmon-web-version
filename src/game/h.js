@@ -3,7 +3,7 @@ import { DataInputStream } from '../j2me/DataInputStream.js';
 import * as c from '../resources/c.js';
 import * as m from './m.js';
 import * as n from './n.js';
-import { j, createMenu, setUpArrow, setDownArrow } from './j.js';
+import { j, createMenu, setUpArrow, setDownArrow, setEngine } from './j.js';
 import { e } from './e.js';
 import { a as WaitScreen } from './a.js';
 import { g as Transition } from './g.js';
@@ -95,7 +95,7 @@ export class h {
       if (bootPhase >= 5) m.postEvent(11, this);
 
       await c.loadResources(1);
-      j.setEngine(this);
+      setEngine(this);
       setUpArrow(upArrow);
       setDownArrow(downArrow);
       checkSaveData();

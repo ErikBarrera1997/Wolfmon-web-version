@@ -102,13 +102,13 @@ async function boot() {
   canvas.repaint();
   canvas.serviceRepaints();
 
-  const { c } = await import('../resources/c.js');
+  const c = await import('../resources/c.js');
   c.init();
   const { loadAssetBytes } = await import('../resources/loader.js');
   cachedMenuBytes = await loadAssetBytes('m');
 
-  const { j } = await import('./j.js');
-  j.initArrays();
+  const jMod = await import('./j.js');
+  jMod.initArrays();
 
   for (let i = 0; i < 5; i++) states[i] = 1;
   startRenderLoop();
