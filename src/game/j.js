@@ -203,11 +203,11 @@ export class j extends Screen {
   }
 
   getItemId(idx) {
-    return this.groups[idx].eventId;
+    return this.groups[idx].eventValue;
   }
 
   setItemValue(idx, val) {
-    this.groups[idx].eventId = val;
+    this.groups[idx].eventValue = val;
   }
 
   _isEnabled(idx) {
@@ -319,31 +319,37 @@ export class j extends Screen {
 
     switch (action) {
       case 5:
-      case 6:
-      case 7:
-      case 31: {
-        const isCancel = action === 6 || action === 31;
-        const slot = isCancel ? 1 : 0;
+      case 7: {
+        if (!group) break;
         if (groupId === 2) {
-          group.currentIdx++;
-          if (group.currentIdx >= group.items.length) group.currentIdx = 0;
+          group.eventValue = group.currentIdx;
         }
-        if (!this.softKeyEnabled[slot]) break;
-        if (this.softKeyTypes[slot]) {
-          evType = this.softKeyTypes[slot];
-          evVal = this.softKeyValues[slot];
-        } else if (group) {
+        const skIdx = this._softKeyIdx;
+        if (this.softKeyEnabled[skIdx] && this.softKeyTypes[skIdx]) {
+          evType = this.softKeyTypes[skIdx];
+          evVal = this.softKeyValues[skIdx];
+        } else {
           evType = group.eventId;
           evVal = group.eventValue;
         }
         break;
       }
+      case 6:
+      case 31: {
+        if (this.softKeyEnabled[1] && this.softKeyTypes[1]) {
+          evType = this.softKeyTypes[1];
+          evVal = this.softKeyValues[1];
+        } else if (this.menuIdx > 0) {
+          const screen = createMenu(this.menuIdx - 1);
+          m.setNextScreen(screen);
+          return;
+        }
+        break;
+      }
       case 3: {
-        if (groupId === 2) {
+        if (groupId === 2 && group) {
           group.currentIdx--;
           if (group.currentIdx < 0) group.currentIdx = group.items.length - 1;
-          evType = group.eventId;
-          evVal = group.eventValue;
         } else {
           const prev = this._prevEnabled(this.selectedIndex);
           if (prev !== -1) this.selectItem(prev);
@@ -351,11 +357,9 @@ export class j extends Screen {
         break;
       }
       case 4: {
-        if (groupId === 2) {
+        if (groupId === 2 && group) {
           group.currentIdx++;
           if (group.currentIdx >= group.items.length) group.currentIdx = 0;
-          evType = group.eventId;
-          evVal = group.eventValue;
         } else {
           const next = this._nextEnabled(this.selectedIndex);
           if (next !== -1) this.selectItem(next);
@@ -363,20 +367,24 @@ export class j extends Screen {
         break;
       }
       case 1: {
-        if (this.softKeyEnabled[0] && this.softKeyTypes[0]) {
-          evType = this.softKeyTypes[0];
-          evVal = this.softKeyValues[0];
+        if (groupId === 2 && group) {
+          group.currentIdx--;
+          if (group.currentIdx < 0) group.currentIdx = group.items.length - 1;
         } else {
-          this._scrollToSelection();
+          if (this.softKeyEnabled[0] && this.softKeyEnabled[1]) {
+            this._softKeyIdx = 0;
+          }
         }
         break;
       }
       case 2: {
-        if (this.softKeyEnabled[1] && this.softKeyTypes[1]) {
-          evType = this.softKeyTypes[1];
-          evVal = this.softKeyValues[1];
+        if (groupId === 2 && group) {
+          group.currentIdx++;
+          if (group.currentIdx >= group.items.length) group.currentIdx = 0;
         } else {
-          this._scrollDown();
+          if (this.softKeyEnabled[0] && this.softKeyEnabled[1]) {
+            this._softKeyIdx = 1;
+          }
         }
         break;
       }

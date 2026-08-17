@@ -33,8 +33,7 @@ function createLanguageMenu(preselected) {
   const title = preselected === -1 ? 'Language' : c.getString(9);
   const menu = new j(title, -1);
   if (preselected >= 0) menu.setTitle('', -1);
-  menu.setItem(0, preselected === -1 ? 'OK' : c.getString(0), 7, -1);
-  if (preselected >= 0) menu.setItem(1, c.getString(2), 1, 1);
+  menu.setItem(0, '', 7, -1);
   const names = cachedLangNames || [];
   let locale = null;
   try { locale = navigator.language?.substring(0, 2); } catch (_e) {}
@@ -66,6 +65,11 @@ export class h {
     if (idx === 0) {
       if (!hasSave) menu.removeItem(0);
       menu.selectItem(0);
+      if (n.isSoundEnabled()) {
+        loadSoundBank().then(() => {
+          n.playSound(62, -1);
+        });
+      }
     }
     if (idx === 1) {
       menu.setItemValue(0, worldLevel);

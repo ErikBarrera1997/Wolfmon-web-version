@@ -9,6 +9,7 @@ export class Screen {
     this.a[0] = '';
     this.a[1] = '';
     this.d = 1;
+    this._softKeyIdx = 0;
   }
 
   setTitle(text, index) {

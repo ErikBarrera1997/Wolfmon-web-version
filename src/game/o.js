@@ -62,17 +62,19 @@ export class o extends FullCanvas {
 
       const y = 208 - 2;
       const lines = [this._titles[0], this._titles[1]];
+      const skIdx = (screen._softKeyIdx != null) ? screen._softKeyIdx : 0;
       let x = 2;
       let anchorY = 36;
       for (let i = 0; i < 2; i++) {
         const s = lines[i];
         if (s && s.length > 0) {
+          const highlight = (i === skIdx);
           g.setColor(0x000000);
           g.drawString(s, x - 1, y - 1, anchorY);
           g.drawString(s, x + 1, y - 1, anchorY);
           g.drawString(s, x - 1, y, anchorY);
           g.drawString(s, x + 1, y, anchorY);
-          g.setColor(0xffffff);
+          g.setColor(highlight ? 0xff7800 : 0xffffff);
           g.drawString(s, x, y, anchorY);
         }
         x = 176 - 2;
