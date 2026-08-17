@@ -6853,13 +6853,13 @@ export class i extends Screen {
       let c = Character.MIN_VALUE;
       if (j < 0) {
         s = -5;
-        c = ';
+        c = 'Å¥';
       } else if (j > 0) {
         s = -181;
-        c = ';
+        c = 'Âµ';
       } else {
         s = -5;
-        c = ';
+        c = 'Âµ';
       } 
       a.a(25 * V / 100, s, -104, c, 0, -5, 169, 181, 173, 169, 253, 700, 100, true);
       b.a(50 * V / 100, s, -104, c, 0, -5, 99, 181, 103, 42, 84, 531, 100, false);
