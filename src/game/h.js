@@ -8,6 +8,7 @@ import { e } from './e.js';
 import { a as WaitScreen } from './a.js';
 import { g as Transition } from './g.js';
 import { RecordStore } from '../j2me/RecordStore.js';
+import { i as GameScreen } from './i.js';
 
 const CX = 176 >> 1;
 const CY = 208 >> 1;
@@ -66,9 +67,7 @@ export class h {
       if (!hasSave) menu.removeItem(0);
       menu.selectItem(0);
       if (n.isSoundEnabled()) {
-        console.log('[Audio] Menú principal: sonido habilitado, cargando soundBank para sonido 62');
         loadSoundBank().then(() => {
-          console.log('[Audio] Menú principal: reproduciendo sonido 62');
           n.playSound(62, -1);
         });
       }
@@ -137,13 +136,10 @@ export class h {
 
       case 3: {
         const sel = menu.getItemId(menu.selectedIndex);
-        console.log(`[Audio] Settings evento 3: sel=${sel}, sonido=${sel === 1 ? 'HABILITADO' : 'DESHABILITADO'}`);
         n.setSoundEnabled(sel === 1);
         if (n.isSoundEnabled()) {
-          console.log('[Audio] Cargando soundBank, sonido a reproducir: ID=62');
           m.setNextScreen(WaitScreen.createWaitScreen(-1));
           loadSoundBank().then(() => {
-            console.log('[Audio] SoundBank cargado, reproduciendo sonido 62');
             n.playSound(62, -1);
             m.setNextScreen(menu);
           });
@@ -197,7 +193,6 @@ export class h {
 
       case 9:
       case 10: {
-        console.log(`[Audio] Boot evento ${eventId}: sonido=${eventId === 9 ? 'HABILITADO' : 'DESHABILITADO'}`);
         n.setSoundEnabled(eventId === 9);
         bootPhase = 5;
         langReady = (langReady === 4) ? 0 : -1;
@@ -267,6 +262,20 @@ export class h {
       case 24: {
         resetAllData();
         m.setNextScreen(createMenu(3));
+        return;
+      }
+
+      case 16: {
+        m.setNextScreen(WaitScreen.createWaitScreen(-1));
+        n.stopPlayer();
+        const game = new GameScreen();
+        game.resetGameState();
+        waitForScreen(WaitScreen).then(() => {
+          loadMenuSprites().then(() => {
+            gameScreen = game;
+            showMenuOrGame();
+          });
+        });
         return;
       }
 
@@ -342,17 +351,15 @@ async function loadMenuSprites() {
 }
 
 async function loadSoundBank() {
-  if (soundLoaded) { console.log('[Audio] loadSoundBank: ya cargado previamente, saltando'); return; }
+  if (soundLoaded) return;
   soundLoaded = true;
   try {
     await c.loadResources(1);
     const ids = c.getResourceGroup(1);
-    console.log(`[Audio] loadSoundBank: ${ids.length} recursos de sonido encontrados, IDs=[${ids}]`);
     for (let i = 0; i < ids.length; i++) {
       const res = c.getResource(ids[i]);
       soundBank[ids[i]] = res;
       n.registerSound(res, ids[i]);
-      console.log(`[Audio]   → Registrado sonido ID=${ids[i]}, ${res?.length || 0} bytes`);
     }
     await c.unloadGroup(1);
   } catch (_e) { console.error('[Audio] loadSoundBank error:', _e); }

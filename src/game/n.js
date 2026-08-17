@@ -31,11 +31,10 @@ export function playSound(id, loops) {
       break;
     }
   }
-  if (idx === -1) { console.log(`[Audio] playSound(${id}): ID no registrado, saltsando`); return; }
+  if (idx === -1) return;
   stopPlayer();
   if (enabled) {
     try {
-      console.log(`[Audio] playSound: id=${id}, loops=${loops}, bytes=${sounds[idx]?.length || 0}`);
       currentPlayer = Manager.createPlayer(new Uint8Array(sounds[idx]), 'audio/midi');
       currentPlayer.prefetch();
       const vc = currentPlayer.getControl('VolumeControl');

@@ -325,7 +325,6 @@ export class j extends Screen {
           group.eventValue = group.currentIdx;
           evType = group.eventId;
           evVal = group.eventValue;
-          console.log(`[Audio] Toggle Enter: opción="${group.items[group.currentIdx].lines[0]}", index=${group.currentIdx}, eventId=${evType}, eventValue=${evVal}`);
         } else {
           const skIdx = this._softKeyIdx;
           if (this.softKeyEnabled[skIdx] && this.softKeyTypes[skIdx]) {
