@@ -47,8 +47,8 @@ function getGameAction(code) {
 }
 
 export class o extends FullCanvas {
-  constructor() {
-    super();
+  constructor(element) {
+    super(element);
     this._statusFont = Font.getFont(32, 0, 0);
     this._lastKeyTime = 0;
     this._lastKeyAction = 0;
@@ -83,7 +83,7 @@ export class o extends FullCanvas {
         x = 176 - 2;
         anchorY = 40;
       }
-    } catch (_e) {}
+    } catch (_e) { console.error('[paint]', _e); }
   }
 
   keyPressed(keyCode) {

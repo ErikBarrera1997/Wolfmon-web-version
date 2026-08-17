@@ -2,8 +2,8 @@ import { Screen } from './p.js';
 import { Display } from '../j2me/Display.js';
 import { Canvas } from '../j2me/Canvas.js';
 import { RecordStore } from '../j2me/RecordStore.js';
-
 import { DataInputStream } from '../j2me/DataInputStream.js';
+import { o } from './o.js';
 
 let midlet = null;
 let canvasEl = null;
@@ -96,7 +96,7 @@ export function createMenuStream() {
 }
 
 async function boot() {
-  canvas = new Canvas(canvasEl);
+  canvas = new o(canvasEl);
   canvas._currentScreen = null;
   Display.setCurrent(canvas);
   canvas.repaint();

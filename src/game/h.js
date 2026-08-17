@@ -27,30 +27,7 @@ let cachedLangNames = null;
 const upArrow = 85;
 const downArrow = 89;
 
-export function paintGauge(g, _menuIdx) {
-  if (bootPhase < 7 || langReady < 5) return;
-  c.drawSprite(2, CX, 8, g);
-}
 
-export function populateMenu(menu, idx) {
-  menu.setTitle('', -1);
-  if (idx === 0) {
-    if (!hasSave) menu.removeItem(0);
-    menu.selectItem(0);
-  }
-  if (idx === 1) {
-    menu.setItemValue(0, worldLevel);
-    menu.setItemValue(1, n.isSoundEnabled() ? 1 : 0);
-    menu.addItem(new e(c.getString(9), menu.itemMarginLeft, 2), 6);
-  }
-  if (idx === 8) {
-    menu.setItemText(0, c.getStringFormatted(21, ['v1.06']));
-  }
-  if (idx === 3) {
-    menu.setItemValue(2, 1);
-    menu.setItemValue(3, 1);
-  }
-}
 
 function createLanguageMenu(preselected) {
   const title = preselected === -1 ? 'Language' : c.getString(9);
@@ -79,6 +56,31 @@ export class h {
     this._soundLoadState = 0;
   }
 
+  paintGauge(g, _menuIdx) {
+    if (bootPhase < 7 || langReady < 5) return;
+    c.drawSprite(2, CX, 8, g);
+  }
+
+  populateMenu(menu, idx) {
+    menu.setTitle('', -1);
+    if (idx === 0) {
+      if (!hasSave) menu.removeItem(0);
+      menu.selectItem(0);
+    }
+    if (idx === 1) {
+      menu.setItemValue(0, worldLevel);
+      menu.setItemValue(1, n.isSoundEnabled() ? 1 : 0);
+      menu.addItem(new e(c.getString(9), menu.itemMarginLeft, 2), 6);
+    }
+    if (idx === 8) {
+      menu.setItemText(0, c.getStringFormatted(21, ['v1.06']));
+    }
+    if (idx === 3) {
+      menu.setItemValue(2, 1);
+      menu.setItemValue(3, 1);
+    }
+  }
+
   async handleEvent(eventId) {
     if (eventId === 1) {
       n.setSoundEnabled(false);
@@ -88,6 +90,7 @@ export class h {
       } catch (_e) {
         langIdx = -1;
       }
+      try { cachedLangNames = await c.getLanguageNames(); } catch (_e) { cachedLangNames = []; }
       m.postEvent(langIdx === -1 ? 6 : 8, this);
       await c.loadResources(0);
 
@@ -101,7 +104,6 @@ export class h {
       checkSaveData();
       loadHighScores();
       await loadMenuSprites();
-      try { cachedLangNames = await c.getLanguageNames(); } catch (_e) { cachedLangNames = []; }
 
       await waitFor(() => bootPhase > 4);
 

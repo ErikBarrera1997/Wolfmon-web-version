@@ -105,8 +105,10 @@ export class e {
         this.iconX = 0;
       }
       this.textX = this.iconX + iconW + 5;
-      this.iconX += c.getSpriteData(this.iconSprites[0], 4);
-      this.iconY = c.getSpriteData(this.iconSprites[0], 5);
+      if (this.iconSprites !== null) {
+        this.iconX += c.getSpriteData(this.iconSprites[0], 4);
+        this.iconY = c.getSpriteData(this.iconSprites[0], 5);
+      }
     } else {
       this.iconX = 0;
       this.iconY = 0;

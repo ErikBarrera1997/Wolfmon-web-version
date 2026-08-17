@@ -5,6 +5,6 @@ export class k {
     this.eventId = 0;
     this.eventValue = 0;
     this.enabled = false;
-    this.currentIdx = 1;
+    this.currentIdx = 0;
   }
 }
