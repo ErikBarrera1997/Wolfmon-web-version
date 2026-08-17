@@ -1,5 +1,5 @@
 import { DataInputStream } from '../j2me/DataInputStream.js';
-import { Image } from '../j2me/Image.js';
+import { Image } from '../images/Image.js';
 import { loadAssetBytes } from './loader.js';
 
 let resources = null;
@@ -32,25 +32,27 @@ async function getCatalog() {
   return catalog;
 }
 
-async function getResourceGroup(groupId) {
-  if (!groups) {
-    groups = new Array(3);
-    groups[2] = new Int16Array(1);
-    try {
-      const stream = DataInputStream.fromBytes(await loadAssetBytes('g'));
-      for (let i = 0; i < 2; i++) {
-        const n = stream.readShort();
-        const arr = new Int16Array(n);
-        for (let j = 0; j < n; j++) arr[j] = stream.readShort();
-        groups[i] = arr;
-      }
-      stream.close();
-    } catch (e) {
-      groups[0] = null;
-      groups[1] = null;
+export async function loadGroups() {
+  if (groups) return;
+  groups = new Array(3);
+  groups[2] = new Int16Array(1);
+  try {
+    const stream = DataInputStream.fromBytes(await loadAssetBytes('g'));
+    for (let i = 0; i < 2; i++) {
+      const n = stream.readShort();
+      const arr = new Int16Array(n);
+      for (let j = 0; j < n; j++) arr[j] = stream.readShort();
+      groups[i] = arr;
     }
+    stream.close();
+  } catch (e) {
+    groups[0] = null;
+    groups[1] = null;
   }
-  return groups[groupId];
+}
+
+export function getResourceGroup(groupId) {
+  return groups ? groups[groupId] : null;
 }
 
 export function setLanguage(lang) {
@@ -64,7 +66,8 @@ function skipBytes(stream, count) {
 }
 
 export async function getSpriteGroup(id) {
-  const group = await getResourceGroup(2);
+  await loadGroups();
+  const group = getResourceGroup(2);
   group[0] = id;
   return group;
 }
@@ -123,11 +126,12 @@ async function parseResource(stream, id, length) {
 }
 
 export async function loadResources(groupId) {
+  await loadGroups();
   const c = await getCatalog();
   const catalogNames = c[1];
   const catalogOffsets = c[0];
   const catalogLengths = c[2];
-  const group = await getResourceGroup(groupId);
+  const group = getResourceGroup(groupId);
   const results = new Array(group.length);
   const parsedNames = new Array(group.length);
   let langFile = '';
@@ -179,7 +183,8 @@ export async function unloadResource(id) {
 }
 
 export async function unloadGroup(groupId) {
-  const group = await getResourceGroup(groupId);
+  await loadGroups();
+  const group = getResourceGroup(groupId);
   for (let b = 0; b < group.length; b++) {
     const s = group[b];
     if (s < 58 && s > 0) {
@@ -273,4 +278,11 @@ export function drawSprite(spriteId, x, y, g) {
     g.drawImage(image, x - row[4] - row[0], y - row[5] - row[1], 20);
     g.setClip(clipRectTemp[0], clipRectTemp[1], clipRectTemp[2], clipRectTemp[3]);
   }
+}
+
+export function drawFrame(x, y, w, h, g) {
+  g.setColor(0x666666);
+  g.drawRect(x, y, w - 1, h - 1);
+  g.setColor(0x333333);
+  g.drawRect(x + 1, y + 1, w - 3, h - 3);
 }

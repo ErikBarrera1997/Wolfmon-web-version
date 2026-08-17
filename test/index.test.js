@@ -37,7 +37,7 @@ test('GET /src/browser.js serves JavaScript', async () => {
     const body = await response.text();
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type'), /javascript/);
-    assert.match(body, /runDemo/);
+    assert.match(body, /KEY_MAP/);
   });
 });
 

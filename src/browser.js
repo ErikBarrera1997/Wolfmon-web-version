@@ -1,59 +1,49 @@
-import {
-  Graphics,
-  Font,
-  FACE_MONOSPACE,
-  STYLE_BOLD,
-  SIZE_SMALL,
-  Image,
-  RecordStore,
-} from './j2me/index.js';
-import { Manager } from '../audio/manager.js';
+import { Display } from './j2me/Display.js';
+import * as m from './game/m.js';
+import { Screen } from './game/p.js';
 
-export function drawDemoFrame(g) {
-  g.setColor(0x000000);
-  g.fillRect(0, 0, g.canvas.width, g.canvas.height);
-  g.setColor(0xffffff);
-  g.drawRect(4, 4, g.canvas.width - 8, g.canvas.height - 8);
-  g.setColor(0xffdd00);
-  g.fillRect(24, 24, 40, 16);
-  g.drawRect(80, 24, 40, 16);
-  g.drawLine(24, 64, 152, 64);
-  g.fillArc(24, 84, 40, 28, 0, 90);
-  g.drawArc(96, 84, 40, 28, 0, 180);
-  g.setFont(Font.getFont(FACE_MONOSPACE, STYLE_BOLD, SIZE_SMALL));
-  g.setColor(0xffffff);
-  g.drawString('Wolfmoon', g.canvas.width / 2, 136, Graphics.HCENTER | Graphics.TOP);
-  g.drawString('J2ME shim OK', g.canvas.width / 2, 160, Graphics.HCENTER | Graphics.TOP);
-}
-
-export function recordStoreDemo() {
-  const rs = RecordStore.openRecordStore('w', true);
-  rs.addRecord(new Uint8Array([7, 8, 9]));
-  return Array.from(rs.getRecord(0));
-}
-
-export function runDemo(canvas) {
-  const g = new Graphics(canvas.getContext('2d'));
-  drawDemoFrame(g);
-  const bytes = recordStoreDemo();
-  const img = Image.createImage(16, 16);
-  const off = img.getGraphics();
-  off.setColor(0x00ff00);
-  off.fillRect(0, 0, 16, 16);
-  g.drawImage(img, 24, 120);
-  Manager.createPlayer(new Uint8Array(0), 'audio/midi').start();
-  const player = Manager.createPlayer(new Uint8Array(0), 'audio/midi');
-  player.prefetch();
-  player.setLoopCount(2);
-  player.start();
-  player.stop();
-  return { drawnOps: g.ctx.ops ? g.ctx.ops.length : null, recordBytes: bytes };
-}
+const KEY_MAP = {
+  ArrowUp: 1,
+  ArrowDown: 2,
+  ArrowRight: 3,
+  ArrowLeft: 4,
+  Enter: 5,
+  Backspace: 6,
+  Escape: 6,
+  ' ': 7,
+  '0': 48, '1': 49, '2': 50, '3': 51, '4': 52,
+  '5': 53, '6': 54, '7': 55, '8': 56, '9': 57,
+  '*': 42, '#': 35,
+};
 
 if (typeof document !== 'undefined') {
   const canvas = document.getElementById('screen');
   if (canvas) {
-    const result = runDemo(canvas);
-    console.log('Wolfmoon shim demo:', result);
+    canvas.width = 176;
+    canvas.height = 208;
+    canvas.style.imageRendering = 'pixelated';
+
+    canvas.addEventListener('keydown', (e) => {
+      e.preventDefault();
+      const action = KEY_MAP[e.key];
+      if (action != null) {
+        const c = Display.getCanvas();
+        if (c) c.keyPressed(action);
+      }
+    });
+
+    canvas.addEventListener('keyup', (e) => {
+      const action = KEY_MAP[e.key];
+      if (action != null) {
+        const c = Display.getCanvas();
+        if (c) c.keyReleased(action);
+      }
+    });
+
+    canvas.tabIndex = 0;
+    canvas.focus();
+
+    m.setCanvasElement(canvas);
+    m.setLifecycleState(1);
   }
 }

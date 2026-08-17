@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 import * as c from '../src/resources/c.js';
-import { Image } from '../src/j2me/Image.js';
+import { Image } from '../src/images/Image.js';
 import { loadAssetBytes } from '../src/resources/loader.js';
 
 async function fakeDecodePNG(bytes) {

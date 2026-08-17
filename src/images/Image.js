@@ -1,5 +1,5 @@
 import { Graphics } from './Graphics.js';
-import { getCanvasFactory } from './environment.js';
+import { getCanvasFactory } from '../j2me/environment.js';
 
 export class Image {
   constructor(canvas) {

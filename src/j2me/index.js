@@ -7,7 +7,7 @@ export {
   BOTTOM,
   BASELINE,
   Graphics,
-} from './Graphics.js';
+} from '../images/Graphics.js';
 export {
   FACE_SYSTEM,
   FACE_MONOSPACE,
@@ -23,7 +23,7 @@ export {
   setMeasurer,
   measureWidth,
 } from './Font.js';
-export { Image } from './Image.js';
+export { Image } from '../images/Image.js';
 export { DataInputStream } from './DataInputStream.js';
 export { RecordStore } from './RecordStore.js';
 export { Manager, Player, VolumeControl } from '../../audio/manager.js';
@@ -33,4 +33,8 @@ export {
   getCanvasFactory,
   createCtx2D,
 } from './environment.js';
-export { createFakeCanvas } from './fakeCtx.js';
+export { createFakeCanvas } from '../images/fakeCtx.js';
+export { MIDlet } from './MIDlet.js';
+export { Display } from './Display.js';
+export { Canvas } from './Canvas.js';
+export { FullCanvas } from './FullCanvas.js';

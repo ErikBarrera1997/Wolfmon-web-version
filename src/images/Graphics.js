@@ -1,4 +1,4 @@
-import { Font, measureWidth } from './Font.js';
+import { Font, measureWidth } from '../j2me/Font.js';
 
 export const TOP = 0;
 export const LEFT = 0;

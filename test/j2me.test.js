@@ -11,7 +11,7 @@ import {
   SIZE_SMALL,
   setCanvasFactory,
 } from '../src/j2me/index.js';
-import { createFakeCanvas } from '../src/j2me/fakeCtx.js';
+import { createFakeCanvas } from '../src/images/fakeCtx.js';
 
 function makeGraphics() {
   const canvas = createFakeCanvas(176, 208);
