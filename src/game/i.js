@@ -4453,25 +4453,25 @@ export class i extends Screen {
     return paramByte & 0xFF;
   }
   
-  static a(paramArrayOfbyte) {
+  a(paramArrayOfbyte) {
     return a(paramArrayOfbyte[O++]) << 24 | a(paramArrayOfbyte[O++]) << 16 | a(paramArrayOfbyte[O++]) << 8 | a(paramArrayOfbyte[O++]);
   }
  (paramArrayOfbyte) {
     return (a(paramArrayOfbyte[O++]) << 8 | a(paramArrayOfbyte[O++]));
   }
   
-  static a(paramArrayOfbyte) {
+  a(paramArrayOfbyte) {
     let b;
     return ((b = paramArrayOfbyte[O++]) === 1);
   }
   
-  static b(paramArrayOfbyte, paramInt1, paramInt2) {
+  b(paramArrayOfbyte, paramInt1, paramInt2) {
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 8 & 0xFF);
     paramArrayOfbyte[paramInt1++] = (paramInt2 & 0xFF);
     return paramInt1;
   }
   
-  static v() {
+  v() {
     if (C !== 0) {
       g = true;
     } else {
@@ -4508,7 +4508,7 @@ export class i extends Screen {
     e = h + g + j + i + f;
   }
   
-  static a(paramArrayOfbyte, paramInt, paramBoolean) {
+  a(paramArrayOfbyte, paramInt, paramBoolean) {
     if (paramBoolean) {
       paramArrayOfbyte[paramInt++] = 1;
     } else {
@@ -4517,7 +4517,7 @@ export class i extends Screen {
     return paramInt;
   }
   
-  static w() {
+  w() {
     N = z;
     h.b = 1;
     let j = 0;
@@ -5834,7 +5834,7 @@ export class i extends Screen {
     h.a.h();
   }
   
-  static v(paramInt) {
+  v(paramInt) {
     if (paramInt !== -1 && paramInt !== a) {
       a = paramInt;
       m.a(27, h.a);
@@ -5915,7 +5915,7 @@ export class i extends Screen {
     //   136: return
   }
   
-  static x() {
+  x() {
     if (t > null) {
       let b;
       for (b = 0; b < d.length && d[b] < 0; b++);
@@ -5928,7 +5928,7 @@ export class i extends Screen {
     } 
   }
   
-  static a(paramInt1, paramArrayOfString, paramInt2) {
+  a(paramInt1, paramArrayOfString, paramInt2) {
     // Byte code:
     //   0: getstatic i.d : [I
     //   3: getstatic i.t : I
@@ -6151,7 +6151,7 @@ export class i extends Screen {
     } 
   }
   
-  static a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt14, paramInt15, paramInt16, paramInt17, paramInt18, paramInt19) {
+  a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt14, paramInt15, paramInt16, paramInt17, paramInt18, paramInt19) {
     let j = 0;
     j = a(paramInt14, paramInt15);
     if (!h || h === 4 || h === 2 || h === 6) {
@@ -6168,11 +6168,11 @@ export class i extends Screen {
     a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt19, true);
   }
   
-  static a(paramInt1, paramInt2) {
+  a(paramInt1, paramInt2) {
     return a(7, paramInt1, paramInt2, 6) ? (a(7, paramInt1, paramInt2, 2) ? 3 : 2) : (a(7, paramInt1, paramInt2, 2) ? 1 : (a(7, paramInt1, paramInt2, 0) ? 0 : (a(7, paramInt1, paramInt2, 4) ? 0 : 0)));
   }
   
-  static a(paramInt1, paramByte1, paramByte2, paramInt2) {
+  a(paramInt1, paramByte1, paramByte2, paramInt2) {
  ;
     let j;
     let l;
@@ -6293,7 +6293,7 @@ export class i extends Screen {
     return (a((paramByte1 + b1), (paramByte2 + b2), 0, 7) === paramInt1);
   }
   
-  static f(paramInt) {
+  f(paramInt) {
     if (paramInt > 255) {
       paramInt = 255;
     } else if (paramInt < 0) {
@@ -6476,31 +6476,39 @@ export class i extends Screen {
     System.gc();
   }
   
-  static b(paramByte1, paramByte2) {
-    let j;
-    if ((j = a(paramByte1, paramByte2, 13, 57344)) === 3 || j === -1)
-      return; 
-    if (a(paramByte1, paramByte2))
-      return; 
-    if (j === 1 || j === 0) {
-      for (let b = 0; b < x.length; b++) {
-        if (x[b] === -1) {
-          x[b] = (paramByte1 + paramByte2 * b);
-          break;
-        } 
-      } 
-      return;
-    } 
-    if (j === 2 || j === 4)
-      for (let b = 0; b < y.length; b++) {
-        if (y[b] === -1) {
-          y[b] = (paramByte1 + paramByte2 * b);
-          return;
-        } 
-      }  
+  b(paramByte1, paramByte2) {
+  let j;
+  // Llamada a 'a' debe ser con this.a si es método estático de la misma clase
+  if ((j = this.a(paramByte1, paramByte2, 13, 57344)) === 3 || j === -1) {
+    return;
   }
+
+  if (this.a(paramByte1, paramByte2)) {
+    return;
+  }
+
+  if (j === 1 || j === 0) {
+    for (let b = 0; b < x.length; b++) {
+      if (x[b] === -1) {
+        x[b] = paramByte1 + paramByte2 * b;
+        break;
+      }
+    }
+    return;
+  }
+
+  if (j === 2 || j === 4) {
+    for (let b = 0; b < y.length; b++) {
+      if (y[b] === -1) {
+        y[b] = paramByte1 + paramByte2 * b;
+        return;
+      }
+    }
+  }
+}
+
   
-  static c(paramByte1, paramByte2) {
+  c(paramByte1, paramByte2) {
     if (b(paramByte1, paramByte2))
       return; 
     for (let b = 0; b < C.length; b++) {
@@ -6511,7 +6519,7 @@ export class i extends Screen {
     } 
   }
   
-  static w(paramInt) {
+  w(paramInt) {
     if (a(d, e, paramInt))
       return; 
     if (paramInt === 5) {
@@ -6543,7 +6551,7 @@ export class i extends Screen {
       }  
   }
   
-  static a(paramByte1, paramByte2) {
+  a(paramByte1, paramByte2) {
     let j;
     if ((j = a(paramByte1, paramByte2, 13, 57344)) === 3 || j === -1)
       return false; 
@@ -6561,7 +6569,7 @@ export class i extends Screen {
     return false;
   }
   
-  static b(paramByte1, paramByte2) {
+  b(paramByte1, paramByte2) {
     for (let b = 0; b < C.length; b++) {
       if (C[b] === (paramByte1 + paramByte2 * b))
         return true; 
@@ -6569,7 +6577,7 @@ export class i extends Screen {
     return false;
   }
   
-  static a(paramInt1, paramInt2, paramInt3) {
+  a(paramInt1, paramInt2, paramInt3) {
     if (paramInt3 === 5) {
       for (let b = 0; b < A.length; b++) {
         if (A[b] === (paramInt1 + paramInt2 * b))
@@ -6591,80 +6599,80 @@ export class i extends Screen {
   
   a(paramInt1, paramInt2, paramInt3, paramGraphics) {
     for (let b = 0; b < (h.b[paramInt3]).length; b += 3) {
-      char c;
+      let c;
       let l = h.b[paramInt3][b + 2];
       if (paramInt3 === 11 || paramInt3 === 12 || paramInt3 === 13 || paramInt3 === 14)
         if (l === 235) {
           if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = ';
+            c = 'Ã½';
           } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = ';
+            c = 'Ã«';
           } else {
-            c = ';
+            c = 'Ã´';
           } 
-        } else if (c === ') {
+        } else if (c === 'Ã¬') {
           if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = ';
+            c = 'Ã½';
           } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = ';
+            c = 'Ã¬';
           } else {
-            c = ';
+           c = 'Ãµ';
           } 
-        } else if (c === ') {
+        } else if (c === 'Ã­') {
           if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = ';
+            c = 'Ã¿';
           } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = ';
+            c = 'Ã­';
           } else {
-            c = ';
+            c = 'Ã¶';
           } 
-        } else if (c === ') {
+        } else if (c === 'Ã®') {
           if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = ';
+            c = 'Ä€';
           } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = ';
+            c = 'Ã®';
           } else {
-            c = ';
+            c = 'Ã·';
           } 
-        } else if (c === ') {
+        } else if (c === 'Ã¯') {
           if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = ';
+            c = 'Ä';
           } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = ';
+            c = 'Ã¯';
           } else {
-            c = ';
+            c = 'Ã¸';
           } 
-        } else if (c === ') {
+        } else if (c === 'Ã°') {
           if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = ';
+            c = 'Ä‚';
           } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = ';
+            c = 'Ã°';
           } else {
-            c = ';
+            c = 'Ã¹';
           } 
-        } else if (c === ') {
+        } else if (c === 'Ã²') {
           if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = ';
+            c = 'Ä„';
           } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = ';
+            c = 'Ã²';
           } else {
-            c = ';
+            c = 'Ã»';
           } 
-        } else if (c === ') {
+        } else if (c === 'Ã³') {
           if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = ';
+            c = 'Ä…';
           } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = ';
+            c = 'Ã³';
           } else {
-            c = ';
+            c = 'Ã¼';
           } 
-        } else if (c === ') {
+        } else if (c === 'Ã±') {
           if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = ';
+            c = 'Äƒ';
           } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = ';
+            c = 'Ã±';
           } else {
-            c = ';
+            c = 'Ãº';
           } 
         }  
       c.a(paramInt1 + h.b[paramInt3][b], paramInt2 + h.b[paramInt3][b + 1], c, paramGraphics);
@@ -6686,7 +6694,7 @@ export class i extends Screen {
     A = 0;
   }
   
-  static x(paramInt) {
+  x(paramInt) {
     switch (A) {
       case 4:
         j = 0;
@@ -6868,7 +6876,7 @@ export class i extends Screen {
     } 
   }
   
-  static l(paramGraphics) {
+  l(paramGraphics) {
     if (A === 0 || c !== null || h || e !== 0 || a(d, e, 13, 57344) === 2 || a(d, e, 13, 57344) === 4)
       return; 
     paramGraphics.setClip(0, 0, 176, 169);
@@ -6927,7 +6935,7 @@ export class i extends Screen {
     G[paramInt4] = 0;
   }
   
-  static y() {
+  y() {
     for (let b = 0; b < 20; b++) {
       s[b] = 0;
       t[b] = 0;
@@ -6991,7 +6999,7 @@ export class i extends Screen {
     } 
   }
   
-  static m(paramGraphics) {
+  m(paramGraphics) {
     paramGraphics.setClip(0, 0, 176, 169);
     let b;
     for (b = 0; b < 10; b++) {
@@ -7019,7 +7027,7 @@ export class i extends Screen {
     paramGraphics.setClip(0, 0, 176, 208);
   }
   
-  static n(paramGraphics) {
+  n(paramGraphics) {
     if (E === 0)
       return; 
     let j = ao ? (296 - D) : (291 + D);
@@ -7029,7 +7037,7 @@ export class i extends Screen {
     } 
   }
   
-  static y(paramInt) {
+  y(paramInt) {
     if (E === 1) {
       aa += paramInt;
       if (aa > 70) {
@@ -7054,7 +7062,7 @@ export class i extends Screen {
     } 
   }
   
-  static b(paramBoolean) {
+  b(paramBoolean) {
     ao = paramBoolean;
     E = 1;
   }
