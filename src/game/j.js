@@ -323,14 +323,18 @@ export class j extends Screen {
         if (!group) break;
         if (groupId === 2) {
           group.eventValue = group.currentIdx;
-        }
-        const skIdx = this._softKeyIdx;
-        if (this.softKeyEnabled[skIdx] && this.softKeyTypes[skIdx]) {
-          evType = this.softKeyTypes[skIdx];
-          evVal = this.softKeyValues[skIdx];
-        } else {
           evType = group.eventId;
           evVal = group.eventValue;
+          console.log(`[Audio] Toggle Enter: opción="${group.items[group.currentIdx].lines[0]}", index=${group.currentIdx}, eventId=${evType}, eventValue=${evVal}`);
+        } else {
+          const skIdx = this._softKeyIdx;
+          if (this.softKeyEnabled[skIdx] && this.softKeyTypes[skIdx]) {
+            evType = this.softKeyTypes[skIdx];
+            evVal = this.softKeyValues[skIdx];
+          } else {
+            evType = group.eventId;
+            evVal = group.eventValue;
+          }
         }
         break;
       }

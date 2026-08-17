@@ -66,7 +66,9 @@ export class h {
       if (!hasSave) menu.removeItem(0);
       menu.selectItem(0);
       if (n.isSoundEnabled()) {
+        console.log('[Audio] Menú principal: sonido habilitado, cargando soundBank para sonido 62');
         loadSoundBank().then(() => {
+          console.log('[Audio] Menú principal: reproduciendo sonido 62');
           n.playSound(62, -1);
         });
       }
@@ -135,10 +137,13 @@ export class h {
 
       case 3: {
         const sel = menu.getItemId(menu.selectedIndex);
+        console.log(`[Audio] Settings evento 3: sel=${sel}, sonido=${sel === 1 ? 'HABILITADO' : 'DESHABILITADO'}`);
         n.setSoundEnabled(sel === 1);
         if (n.isSoundEnabled()) {
+          console.log('[Audio] Cargando soundBank, sonido a reproducir: ID=62');
           m.setNextScreen(WaitScreen.createWaitScreen(-1));
           loadSoundBank().then(() => {
+            console.log('[Audio] SoundBank cargado, reproduciendo sonido 62');
             n.playSound(62, -1);
             m.setNextScreen(menu);
           });
@@ -192,6 +197,7 @@ export class h {
 
       case 9:
       case 10: {
+        console.log(`[Audio] Boot evento ${eventId}: sonido=${eventId === 9 ? 'HABILITADO' : 'DESHABILITADO'}`);
         n.setSoundEnabled(eventId === 9);
         bootPhase = 5;
         langReady = (langReady === 4) ? 0 : -1;
@@ -336,17 +342,20 @@ async function loadMenuSprites() {
 }
 
 async function loadSoundBank() {
-  if (soundLoaded) return;
+  if (soundLoaded) { console.log('[Audio] loadSoundBank: ya cargado previamente, saltando'); return; }
   soundLoaded = true;
   try {
     await c.loadResources(1);
     const ids = c.getResourceGroup(1);
+    console.log(`[Audio] loadSoundBank: ${ids.length} recursos de sonido encontrados, IDs=[${ids}]`);
     for (let i = 0; i < ids.length; i++) {
-      soundBank[ids[i]] = c.getResource(ids[i]);
-      n.registerSound(c.getResource(ids[i]), ids[i]);
+      const res = c.getResource(ids[i]);
+      soundBank[ids[i]] = res;
+      n.registerSound(res, ids[i]);
+      console.log(`[Audio]   → Registrado sonido ID=${ids[i]}, ${res?.length || 0} bytes`);
     }
     await c.unloadGroup(1);
-  } catch (_e) {}
+  } catch (_e) { console.error('[Audio] loadSoundBank error:', _e); }
 }
 
 function showMenuOrGame() {

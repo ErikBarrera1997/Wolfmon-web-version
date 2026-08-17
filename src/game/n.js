@@ -31,17 +31,18 @@ export function playSound(id, loops) {
       break;
     }
   }
-  if (idx === -1) return;
+  if (idx === -1) { console.log(`[Audio] playSound(${id}): ID no registrado, saltsando`); return; }
   stopPlayer();
   if (enabled) {
     try {
+      console.log(`[Audio] playSound: id=${id}, loops=${loops}, bytes=${sounds[idx]?.length || 0}`);
       currentPlayer = Manager.createPlayer(new Uint8Array(sounds[idx]), 'audio/midi');
       currentPlayer.prefetch();
       const vc = currentPlayer.getControl('VolumeControl');
       if (vc) vc.setLevel(volume);
       currentPlayer.setLoopCount(loops);
       currentPlayer.start();
-    } catch (_e) {}
+    } catch (_e) { console.error('[Audio] playSound error:', _e); }
   }
 }
 
