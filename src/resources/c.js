@@ -242,7 +242,8 @@ export async function getLanguageNames() {
 }
 
 export function getSpriteData(spriteId, index) {
-  return spriteRows[spriteId][index];
+  const row = spriteRows[spriteId];
+  return row ? row[index] : 0;
 }
 
 function clipRect(g, x, y, w, h, out) {
@@ -273,7 +274,9 @@ function clipRect(g, x, y, w, h, out) {
 
 export function drawSprite(spriteId, x, y, g) {
   const row = spriteRows[spriteId];
+  if (row == null) return;
   const image = getResource(row[6]);
+  if (image == null) return;
   if (clipRect(g, x - row[4], y - row[5], row[2], row[3], clipRectTemp)) {
     g.drawImage(image, x - row[4] - row[0], y - row[5] - row[1], 20);
     g.setClip(clipRectTemp[0], clipRectTemp[1], clipRectTemp[2], clipRectTemp[3]);

@@ -80,11 +80,11 @@ test('unloadResource frees the image and its sprite rows', async () => {
   await c.loadResources(0);
   await c.unloadResource(4);
   assert.equal(c.getResource(4), null);
-  assert.throws(() => c.getSpriteData(23, 2));
+  assert.equal(c.getSpriteData(23, 2), 0);
   assert.notEqual(c.getResource(5), null);
   await c.unloadResource(5);
   assert.equal(c.getResource(5), null);
-  assert.throws(() => c.getSpriteData(24, 0));
+  assert.equal(c.getSpriteData(24, 0), 0);
 });
 
 test('loadResources with an out-of-range group throws (mirrors AIOOBE)', async () => {

@@ -123,22 +123,22 @@ export class b extends Screen {
   keyPressed(action) {
     switch (action) {
       case 1:
+      case 3:
         this.scrollUp();
         return;
       case 2:
+      case 4:
         this.scrollDown();
         return;
       case 5:
-        m.postEvent(20, this);
-        return;
-      case 7:
-      case 11:
-      case 15:
         if (this._nextScreen != null) {
           this._scrollY = 0;
           m.setNextScreen(this._nextScreen);
         }
-        break;
+        return;
+      case 6:
+        m.postEvent(20, this);
+        return;
     }
   }
 

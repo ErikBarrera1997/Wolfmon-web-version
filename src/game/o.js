@@ -16,33 +16,28 @@ const MULTI_TAP = [
   ['w', 'x', 'y', 'z', '9'],
 ];
 
-function mapKeyToAction(code) {
-  const numpad = {
-    48: 10, 49: 11, 50: 12, 51: 13, 52: 14,
-    53: 15, 54: 16, 55: 17, 56: 18, 57: 19,
-    42: 20, 35: 21,
-  };
-  const soft = { [-6]: 5, [-7]: 6, [-5]: 7 };
-  if (numpad[code] != null) return numpad[code];
-  if (soft[code] != null) return soft[code];
+const PHONE_NAV = { 12:3, 18:4, 14:1, 16:2, 15:5, 11:7, 13:6 };
 
-  let action;
-  try {
-    action = getGameAction(code);
-  } catch {
-    return -1;
-  }
-  switch (action) {
-    case 6: return 2;
-    case 1: return 1;
-    case 2: return 3;
+function mapKeyToAction(code) {
+  if (code >= 48 && code <= 57) return code - 38;
+  if (code === 42) return 20;
+  if (code === 35) return 21;
+  if (code === 8 || code === 27) return 6;
+  const ma = getGameAction(code);
+  switch (ma) {
+    case 1: return 3;
     case 5: return 4;
+    case 2: return 1;
+    case 3: return 2;
+    case 6: return 5;
+    case 7: return 7;
+    case 8: return 6;
   }
   return -1;
 }
 
 function getGameAction(code) {
-  const map = { 38: 1, 37: 2, 39: 3, 40: 5, 13: 6, 32: 6 };
+  const map = { 38: 1, 37: 2, 39: 3, 40: 5, 13: 6, 32: 7 };
   return map[code] ?? -1;
 }
 
@@ -90,10 +85,14 @@ export class o extends FullCanvas {
     const screen = m.getCurrentScreen();
     if (screen == null) return;
     try {
-      const action = mapKeyToAction(keyCode);
-      if (this.inputMode === 3 && ((action >= 10 && action <= 21) || action === 21)) {
+      let action = mapKeyToAction(keyCode);
+      if (this.inputMode === 3 && action >= 10 && action <= 21) {
         this._handleAction(action);
       } else {
+        if (action >= 10 && action <= 21) {
+          const remap = PHONE_NAV[action];
+          if (remap != null) action = remap;
+        }
         screen.keyPressed(action);
       }
     } catch (_e) {}

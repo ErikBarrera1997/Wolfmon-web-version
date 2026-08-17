@@ -173,16 +173,15 @@ export class h {
         /* falls through */
       case 8: {
         m.setNextScreen(WaitScreen.createWaitScreen(-1));
-        c.loadResources(langIdx).then(() => {
-          c.unloadResource(0).then(() => c.loadResources(0)).then(() => {
-            if (langReady === 5) {
-              m.setNextScreen(createMenu(1));
-            } else {
-              bootPhase = 3;
-              bootPhase = 4;
-              m.setNextScreen(createMenu(4));
-            }
-          });
+        c.setLanguage(langIdx);
+        c.loadResources(2).then(() => {
+          if (langReady === 5) {
+            m.setNextScreen(createMenu(1));
+          } else {
+            bootPhase = 3;
+            bootPhase = 4;
+            m.setNextScreen(createMenu(4));
+          }
         });
         return;
       }
@@ -192,6 +191,7 @@ export class h {
         n.setSoundEnabled(eventId === 9);
         bootPhase = 5;
         langReady = (langReady === 4) ? 0 : -1;
+        m.postEvent(11, this);
         return;
       }
 
@@ -205,8 +205,10 @@ export class h {
           let scr;
           if (langReady === 1) {
             scr = Transition.createTransition(0);
+            scr._event = 11;
           } else {
             scr = WaitScreen.createProgressScreen(sprites[langReady], bgs[langReady]);
+            scr._event = 11;
           }
           if (langReady > 0) {
             if (scr instanceof Transition) {
@@ -214,8 +216,6 @@ export class h {
               scr._firstPaint = true;
               scr.setDuration(durations[langReady]);
             } else {
-              scr.j = 11;
-              scr.a = true;
               scr.setTimer(durations[langReady]);
             }
           }

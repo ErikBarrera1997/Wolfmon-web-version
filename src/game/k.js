@@ -4,7 +4,7 @@ export class k {
     this.items = null;
     this.eventId = 0;
     this.eventValue = 0;
-    this.enabled = false;
+    this.enabled = true;
     this.currentIdx = 0;
   }
 }

@@ -189,6 +189,7 @@ export class j extends Screen {
     this.softKeyValues[idx] = val2;
     this.softKeyLabels[idx] = text;
     this.softKeyEnabled[idx] = true;
+    this.a[idx] = text;
   }
 
   setItemText(idx, text) {
@@ -343,6 +344,9 @@ export class j extends Screen {
           if (group.currentIdx < 0) group.currentIdx = group.items.length - 1;
           evType = group.eventId;
           evVal = group.eventValue;
+        } else {
+          const prev = this._prevEnabled(this.selectedIndex);
+          if (prev !== -1) this.selectItem(prev);
         }
         break;
       }
@@ -352,15 +356,30 @@ export class j extends Screen {
           if (group.currentIdx >= group.items.length) group.currentIdx = 0;
           evType = group.eventId;
           evVal = group.eventValue;
+        } else {
+          const next = this._nextEnabled(this.selectedIndex);
+          if (next !== -1) this.selectItem(next);
         }
         break;
       }
-      case 1:
-        this._scrollToSelection();
+      case 1: {
+        if (this.softKeyEnabled[0] && this.softKeyTypes[0]) {
+          evType = this.softKeyTypes[0];
+          evVal = this.softKeyValues[0];
+        } else {
+          this._scrollToSelection();
+        }
         break;
-      case 2:
-        this._scrollDown();
+      }
+      case 2: {
+        if (this.softKeyEnabled[1] && this.softKeyTypes[1]) {
+          evType = this.softKeyTypes[1];
+          evVal = this.softKeyValues[1];
+        } else {
+          this._scrollDown();
+        }
         break;
+      }
     }
 
     if (evType !== -1) {
@@ -479,12 +498,7 @@ export class j extends Screen {
       const dx = this.marginX;
       const dy = this.contentTop + grpTop - this.scrollY;
 
-      let color;
-      if (grp.enabled) {
-        color = i === this.selectedIndex ? 0xffffff : 0x8d8303;
-      } else {
-        color = i === this.selectedIndex ? 0x751210 : 0x4a034a;
-      }
+      let color = i === this.selectedIndex ? 0xffffff : 0x8d8303;
 
       g.setColor(0);
       grp.items[grp.currentIdx].visible = false;
