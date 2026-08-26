@@ -16,7 +16,7 @@ export class g extends Screen {
     this._elapsed = 0;
     this._duration = -1;
     this._event = -1;
-    this._acceptInput = true;
+    this._acceptInput = false;
     this._step = 0;
     this._x = SCREEN_W + (SCREEN_W >> 1);
     this._dir = 0;

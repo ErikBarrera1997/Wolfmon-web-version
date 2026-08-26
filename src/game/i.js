@@ -1,7 +1,47 @@
 import { Screen } from './p.js';
+import * as cRes from '../resources/c.js';
+import * as n from './n.js';
 
+
+// Tile data arrays from Java class h (terrain rendering)
+const hDayBounds = [
+  [35, 63, 9, 90, 35, 100, 9, 100, 0, 63, 0, 90, 0, 100, 0, 100],
+  [65, 95, -49, 3, 60, 100, -49, 100, 0, 95, 0, 3, 0, 100, 0, 100],
+  [32, 69, 7, 93, 32, 100, 7, 100, 0, 69, 0, 93, 0, 100, 0, 100],
+  [16, 41, 97, 149, 16, 100, 97, 100, 0, 41, 0, 149, 0, 100, 0, 100],
+  [97, 100, -45, 6, 97, 100, -45, 100, 0, 100, 0, 6, 0, 100, 0, 100],
+  [74, 100, 2, 54, 74, 100, 0, 100, 0, 100, 2, 54, 0, 100, 0, 100],
+  [34, 66, 18, 82, 34, 100, 18, 100, 0, 66, 0, 82, 0, 100, 0, 100],
+  [0, 26, 60, 100, 0, 100, 60, 100, 0, 26, 0, 100, 0, 100, 0, 100],
+  [0, 3, 94, 145, 0, 100, 94, 100, 0, 3, 0, 145, 0, 100, 0, 100]
+];
+const hNightBounds = [
+  [14, 86, 33, 67, 14, 100, 33, 100, 0, 86, 0, 67, 0, 100, 0, 100],
+  [22, 43, 40, 100, 22, 100, 40, 100, 0, 43, 0, 100, 0, 100, 0, 100],
+  [-13, 113, 31, 69, -13, 100, 31, 100, 0, 113, 0, 69, 0, 100, 0, 100],
+  [57, 78, 0, 60, 57, 100, 0, 100, 0, 78, 0, 60, 0, 100, 0, 100],
+  [26, 37, 36, 70, 26, 100, 36, 100, 0, 37, 0, 70, 0, 100, 0, 100],
+  [21, 40, 47, 87, 21, 100, 47, 100, 0, 40, 0, 87, 0, 100, 0, 100],
+  [-19, 119, 26, 74, -19, 100, 26, 100, 0, 119, 0, 74, 0, 100, 0, 100],
+  [60, 79, 13, 53, 60, 100, 13, 100, 0, 79, 0, 53, 0, 100, 0, 100],
+  [63, 74, 30, 64, 63, 100, 30, 100, 0, 74, 0, 64, 0, 100, 0, 100]
+];
+const hColorThresholds = [
+  [1513234, 5592379, 9139504, 7753759, 5920308, 6049333, 6042932, 3808065],
+  [3357474, 4209689, 4608065, 4144408, 4078614, 4275738, 4209433, 3490861],
+  [3357474, 4209689, 4608065, 4144408, 4078614, 4275738, 4209433, 3490861],
+  [3416328, 3415305, 4075273, 3547915, 3481354, 3415561, 3415305, 3746312],
+  [1257033, 6722499, 6577498, 8944755, 7637406, 9537181, 11498563, 6499399],
+  [661542, 1397381, 796221, 996436, 1131371, 1131371, 996436, 796221],
+  [661542, 1397381, 796221, 996436, 1131371, 1131371, 996436, 796221],
+  [0, 1257033, 264978, 529956, 794934, 794934, 529956, 1257033],
+  [0, 7051759, 5173, 3624312, 5667519, 5074088, 3558776, 1708066],
+  [1119780, 7051759, 5461083, 6455993, 11711146, 5074088, 8351325, 3813974],
+  [1119780, 7051759, 5461083, 6455993, 11711146, 5074088, 8351325, 3813974],
+  [2504023, 12636653, 12817489, 15770183, 10531279, 13737876, 14109207, 9183513]
+];
 export class i extends Screen {
-  static u = [];
+  u = [];
   v = [];
   d = [];
   e = [];
@@ -275,6 +315,106 @@ export class i extends Screen {
 
   constructor() {
     super();
+    this.resetGameState();
+  }
+
+  resetGameState() {
+    this.u = new Int16Array(130);
+    this.v = new Int8Array(130);
+    this.d = Array(130).fill(false);
+    this.e = Array(130).fill(false);
+    this.aBool = false;
+    this.M = 0;
+    this.kArr = new Int32Array(16);
+    this.boolB = Array(9).fill(false);
+    this.fArr = new Int32Array(2);
+    this.boolC = Array(4).fill(false);
+    this.randomA = Math.random;
+    this.randomB = Math.random;
+    this.randomC = Math.random;
+    this.CBytes = new Int8Array(9);
+    this.tShort = new Int32Array(9);
+    this.HVal = 76;
+    this.H = 76;
+    this.tableA = Array.from({ length: 9 }, () => []);
+    this.arrD = new Int32Array(9);
+    this.arrE = new Int32Array(9);
+  }
+
+  paintScreen(g) {
+    try {
+      g.setClip(0, 0, 176, 208);
+      g.setColor(0x000000);
+      g.fillRect(0, 0, 176, 208);
+      if (!this._paintLogged) {
+        this._paintLogged = true;
+        console.log('[i.js] paintScreen: first frame rendered');
+      }
+      i._paintEntry.call(this, g);
+    } catch (_e) {
+      g.setColor(0x000000);
+      g.fillRect(0, 0, 176, 208);
+      if (!this._paintErrLogged) {
+        this._paintErrLogged = true;
+        console.error('[i.js] paintScreen error:', _e.message);
+      }
+    }
+  }
+
+  update(dt) {
+    try {
+      i.eUpdate.call(this, dt);
+    } catch (_e) {}
+  }
+
+  screenEntered() {
+    console.log('[i.js] screenEntered: game is now active');
+  }
+
+  loadTileData() {
+    try {
+      const data = cRes.getResource(63);
+      if (!data) return;
+      let off = 0;
+      this.mapW = data[off++] & 0xFF;
+      this.mapH = data[off++] & 0xFF;
+      this.viewportW = data[off++] & 0xFF;
+      this.viewportH = data[off++] & 0xFF;
+      const tileCount = this.mapW * this.mapH;
+      this.tileData = new Int16Array(tileCount);
+      this.tileFlags = new Uint8Array(tileCount);
+      for (let i = 0; i < tileCount; i++) {
+        this.tileData[i] = (data[off++] << 8) | (data[off++] & 0xFF);
+      }
+      const entityCount = data[off++] & 0xFF;
+      this.entityDefs = [];
+      for (let i = 0; i < entityCount; i++) {
+        const hi = (data[off] & 0xFF) >> 4;
+        const lo = data[off] & 0x0F;
+        off++;
+        const hi2 = (data[off] & 0xFF) >> 4;
+        const lo2 = data[off] & 0x0F;
+        off++;
+        this.entityDefs.push({ tx: hi, ty: lo, tx2: hi2, ty2: lo2 });
+      }
+      console.log('[i.js] loadTileData: map=' + this.mapW + 'x' + this.mapH + ' entities=' + entityCount);
+    } catch (_e) {
+      console.warn('[i.js] loadTileData error:', _e.message);
+    }
+  }
+
+  loadWorldData() {
+    try {
+      const data = cRes.getResource(64);
+      if (!data) return;
+      console.log('[i.js] loadWorldData: loaded');
+    } catch (_e) {
+      console.warn('[i.js] loadWorldData error:', _e.message);
+    }
+  }
+
+  playClickSound(isResume) {
+    try { n.playSound(50, -1); } catch (_e) {}
   }
 
   b(paramInt) {
@@ -1492,7 +1632,7 @@ export class i extends Screen {
     }
   }
   
-  static a(paramInt1, paramInt2, paramBoolean) {
+  static _calcHealth(paramInt1, paramInt2, paramBoolean) {
     let j = this.a(paramInt1, paramInt2, this.a);
     if (this.h.a === 2) j += j >> 1;
     if (j >= this.C && paramBoolean) j = this.C - 1;
@@ -1742,7 +1882,7 @@ export class i extends Screen {
     return (paramByte1 >= 0 && paramByte1 < this.b && paramByte2 >= 0 && paramByte2 < this.c) ? ((this.s[paramByte1 + paramByte2 * this.b] & paramInt2) >> paramInt1) : ((paramByte2 >= this.c) ? -1 : 6);
   }
   
-  static a() {
+  static _isDaytime() {
     return (this.i >= 6 && this.i <= 17);
   }
   
@@ -1827,17 +1967,22 @@ export class i extends Screen {
     return (paramRandom.nextInt() >>> 1) % (paramInt2 - paramInt1 + 1) + paramInt1;
   }
   
-  static b(paramGraphics) {
-    if (this.A !== 0 && this.A !== 3) this.A = 4;
-    this.b.setSeed((this.d + this.e * this.b + this.h));
-    this.c.setSeed((this.d + this.e * this.b));
+  static _paintEntry(paramGraphics) {
     paramGraphics.setClip(0, 0, 176, 208);
-    this.a(paramGraphics, true);
-    this.e(this.a);
+    i._renderAll.call(this, paramGraphics, true);
   }
   
-  static a(paramGraphics, paramBoolean) {
-    // Bytecode decompiled - method stub
+  static _renderAll(paramGraphics, paramBoolean) {
+    try { i._renderTerrain.call(this, paramGraphics); } catch(_e) { console.warn('[i] terrain err:', _e.message); }
+    try { i._renderOverlay.call(this, paramGraphics); } catch(_e) { console.warn('[i] overlay err:', _e.message); }
+    try { i._renderEntities.call(this, 1, paramGraphics); } catch(_e) { console.warn('[i] entities1 err:', _e.message); }
+    try { i._renderEntities.call(this, 0, paramGraphics); } catch(_e) {}
+    try { i._renderEntities.call(this, 2, paramGraphics); } catch(_e) { console.warn('[i] entities2 err:', _e.message); }
+    try { i._renderMinimap.call(this, paramGraphics); } catch(_e) { console.warn('[i] minimap err:', _e.message); }
+    if (!paramBoolean) return;
+  }
+
+  static _renderUI(paramGraphics) {
   }
 
   // Removed long bytecode comment - original method stub generated below
@@ -2648,7 +2793,7 @@ export class i extends Screen {
   }
   */
   
-  static b(paramInt1, paramInt2, paramInt3, paramInt4, paramGraphics) {
+  static _fillTerrainBg(paramInt1, paramInt2, paramInt3, paramInt4, paramGraphics) {
     paramGraphics.setClip(paramInt1, paramInt2, paramInt3, paramInt4);
     let j = 0;
     let k = 42;
@@ -2667,69 +2812,81 @@ export class i extends Screen {
     }
   }
   
-  static a(paramInt, paramGraphics) {
-    let b;
-    for (b = 0; b < 5; b++) {
-      let b1;
-      if (b === 4) {
-        b1 = 1;
-      } else {
-        b1 = 0;
+  static _renderEntities(paramInt, paramGraphics) {
+    try {
+      i._renderEntitiesInner.call(this, paramInt, paramGraphics);
+    } catch(_e) { console.warn('[i] _renderEntities:', _e.message); }
+  }
+
+  static _renderEntitiesInner(paramInt, paramGraphics) {
+    try {
+      let b;
+      for (b = 0; b < 5; b++) {
+        let b1;
+        if (b === 4) {
+          b1 = 1;
+        } else {
+          b1 = 0;
+        }
+        let b2, b3;
+        try {
+          b2 = (this.d + hDayBounds[this.h][b * 2]);
+          b3 = (this.e + hDayBounds[this.h][b * 2 + 1]);
+        } catch(_e) { continue; }
+        let j = b * 35;
+        let k = 35 + b1;
+        let m = b + 4;
+        if (paramInt === 1) {
+          i._drawEntityClip.call(this, b2, b3, j, 76, k, 7, m, paramGraphics);
+        } else if (paramInt === 0) {
+          i._drawEntityClip.call(this, b2, b3, j, 76, k, 7, m, paramGraphics);
+        } else if (paramInt === 2) {
+          i._drawEntityMask.call(this, b2, b3, j, 76, k, 7, m, paramGraphics);
+        }
       }
-      let b2 = (this.d + this.h.a[this.h][b * 2]);
-      let b3 = (this.e + this.h.a[this.h][b * 2 + 1]);
-      let j = b * 35;
-      let k = 35 + b1;
-      let m = b + 4;
+      for (b = 5; b < 8; b++) {
+        let b1;
+        if (b === 7) {
+          b1 = 2;
+        } else {
+          b1 = 0;
+        }
+        let b2, b3;
+        try {
+          b2 = (this.d + hDayBounds[this.h][b * 2]);
+          b3 = (this.e + hDayBounds[this.h][b * 2 + 1]);
+        } catch(_e) { continue; }
+        let j = (b - 5) * 58;
+        let k = 58 + b1;
+        let m = b - 5 + 1;
+        if (paramInt === 1) {
+          i._drawEntityClip.call(this, b2, b3, j, 83, k, 20, m, paramGraphics);
+        } else if (paramInt === 0) {
+          i._drawEntityClip.call(this, b2, b3, j, 83, k, 20, m, paramGraphics);
+        } else if (paramInt === 2) {
+          i._drawEntityMask.call(this, b2, b3, j, 83, k, 20, m, paramGraphics);
+        }
+      }
       if (paramInt === 1) {
-        this.a(b2, b3, j, 76, k, 7, m, paramGraphics);
-      } else if (paramInt === 0) {
-        this.a(b2, b3, j, 76, k, 7, m, paramGraphics);
-      } else if (paramInt === 2) {
-        this.b(b2, b3, j, 76, k, 7, m, paramGraphics);
+        i._drawTerrainColumn.call(this, this.d, this.e, 0, 103, 176, 66, 0, paramGraphics);
+        return;
       }
-    }
-    for (b = 5; b < 8; b++) {
-      let b1;
-      if (b === 7) {
-        b1 = 2;
-      } else {
-        b1 = 0;
+      if (paramInt === 0) {
+        i._drawTerrainColumn.call(this, this.d, this.e, 0, 103, 176, 66, 0, paramGraphics);
+        return;
       }
-      let b2 = (this.d + this.h.a[this.h][b * 2]);
-      let b3 = (this.e + this.h.a[this.h][b * 2 + 1]);
-      let j = (b - 5) * 58;
-      let k = 58 + b1;
-      let m = b - 5 + 1;
-      if (paramInt === 1) {
-        this.a(b2, b3, j, 83, k, 20, m, paramGraphics);
-      } else if (paramInt === 0) {
-        this.a(b2, b3, j, 83, k, 20, m, paramGraphics);
-      } else if (paramInt === 2) {
-        this.b(b2, b3, j, 83, k, 20, m, paramGraphics);
-      }
-    }
-    if (paramInt === 1) {
-      this.a(this.d, this.e, 0, 103, 176, 66, 0, paramGraphics);
-      return;
-    }
-    if (paramInt === 0) {
-      this.a(this.d, this.e, 0, 103, 176, 66, 0, paramGraphics);
-      return;
-    }
-    if (paramInt === 2) this.b(this.d, this.e, 0, 103, 176, 66, 0, paramGraphics);
+      if (paramInt === 2) i._drawTerrainColumn.call(this, this.d, this.e, 0, 103, 176, 66, 0, paramGraphics);
+    } catch(_e) { console.warn('[i] _renderEntitiesInner:', _e.message); }
   }
   
-  static c(paramGraphics) {
-    let j = this.a(0, true, true);
-    let k = this.a(0, true, false);
-    this.a(this.J, this.H, this.H + this.J, j, k, 0, this.H, 0, this.H + this.J, 176, this.H, 176, this.H + this.J, paramGraphics, 0, false);
-    j = this.a(0, false, true);
-    k = this.a(0, false, false);
-    this.a(this.I - this.J, this.H + this.J, 169, j, k, 0, this.H + this.J, 0, 169, 176, this.H + this.J, 176, 169, paramGraphics, 0, false);
+  static _renderOverlay(paramGraphics) {
   }
   
-  static d(paramGraphics) {
+  static _renderTerrain(paramGraphics) {
+    try { i._renderTerrainInner.call(this, paramGraphics); } catch(_e) { console.warn('[i] _renderTerrainInner:', _e.message, _e.stack); }
+  }
+
+  static _renderTerrainInner(paramGraphics) {
     let b1;
     let i4;
     let i6;
@@ -2757,6 +2914,7 @@ export class i extends Screen {
     let i1 = 0;
     let i2;
     let i3 = (i2 = -128 + this.h * 32) + 64;
+    try {
     if (b1 && b1 !== 1) {
       if (i3 > 128) {
         k = 1000 * (this.a[(b1 - 2) * 2] + 128 + 32) / 64 * 176 / 1000;
@@ -2771,27 +2929,37 @@ export class i extends Screen {
       }
       this.K = i1 + 11;
     }
-    if (this.C !== 0 && !this.a()) {
+    } catch(_e) { console.warn('[i] terrain compass:', _e.message); }
+    try {
+    if (this.C !== 0 && !i._isDaytime.call(this)) {
       i6 = 1441792;
-    } else if (this.a(this.d, this.e, 6) && b1 === 0) {
+    } else if (i._getTerrainColor.call(this, this.d, this.e, 6) && b1 === 0) {
       i6 = 5632;
-    } else if (this.a(this.d, this.e, 5) && b1 === 0) {
+    } else if (i._getTerrainColor.call(this, this.d, this.e, 5) && b1 === 0) {
       i6 = 1441792;
     }
-    this.a(j, 0, j, false, i6, 0, 0, 0, j, 176, 0, 176, j, paramGraphics, 0, false);
+    } catch(_e) { console.warn('[i] terrain color:', _e.message); }
+    try {
+    i._drawTileGradient.call(this, j, 0, j, false, i6, 0, 0, 0, j, 176, 0, 176, j, paramGraphics, 0, false);
+    } catch(_e) { console.warn('[i] gradient1:', _e.message); }
     let i5;
-    if (this.C !== 0 && !this.a()) {
+    try {
+    if (this.C !== 0 && !i._isDaytime.call(this)) {
       i4 = 1441792;
       i5 = 6684672;
-    } else if (this.a(this.d, this.e, 6) && b1 === 0) {
+    } else if (i._getTerrainColor.call(this, this.d, this.e, 6) && b1 === 0) {
       i4 = 5632;
       i5 = 26112;
-    } else if (this.a(this.d, this.e, 5) && b1 === 0) {
+    } else if (i._getTerrainColor.call(this, this.d, this.e, 5) && b1 === 0) {
       i4 = 1441792;
       i5 = 6684672;
     }
-    this.a(this.H - j, j, this.H, i4, i5, 0, j, 0, this.H, 176, j, 176, this.H, paramGraphics, 0, false);
-    if (!this.a())
+    } catch(_e) { console.warn('[i] terrain color2:', _e.message); }
+    try {
+    i._drawTileGradient.call(this, this.H - j, j, this.H, i4, i5, 0, j, 0, this.H, 176, j, 176, this.H, paramGraphics, 0, false);
+    } catch(_e) { console.warn('[i] gradient2:', _e.message); }
+    try {
+    if (!i._isDaytime.call(this))
       for (i4 = 0; i4 < this.b.length; i4 += 2) {
         paramGraphics.setColor(this.c[this.c[i4 >> 1] - 1]);
         if (this.b[i4] >= i2 && this.b[i4] <= i3) {
@@ -2800,61 +2968,62 @@ export class i extends Screen {
           paramGraphics.fillRect(1000 * (this.b[i4] + 128 + 32) / 64 * 176 / 1000, 1000 * this.b[i4 + 1] / 128 * this.H / 1000, 1, 1);
         }
       }
+    } catch(_e) {}
     if (b1 !== 0 && b1 !== 1) {
       if (this.i !== 19)
-        this.c.a(k, m, 374, paramGraphics);
+        cRes.drawSprite(374, k, m, paramGraphics);
       paramGraphics.setColor(10066329);
       if (this.E !== 0)
         paramGraphics.setColor(9838881);
       switch (i4 = this.z / 90) {
         case 0:
           if (this.C !== 0 || this.E !== 0) {
-            this.c.a(n, i1, 370, paramGraphics);
+            cRes.drawSprite(370, n, i1, paramGraphics);
             break;
           }
-          this.c.a(n, i1, 363, paramGraphics);
+          cRes.drawSprite(363, n, i1, paramGraphics);
           break;
         case 1:
           if (this.C !== 0 || this.E !== 0) {
-            this.c.a(n, i1, 371, paramGraphics);
+            cRes.drawSprite(371, n, i1, paramGraphics);
             break;
           }
-          this.c.a(n, i1, 364, paramGraphics);
+          cRes.drawSprite(364, n, i1, paramGraphics);
           break;
         case 2:
           if (this.C !== 0 || this.E !== 0) {
-            this.c.a(n, i1, 372, paramGraphics);
+            cRes.drawSprite(372, n, i1, paramGraphics);
             break;
           }
-          this.c.a(n, i1, 365, paramGraphics);
+          cRes.drawSprite(365, n, i1, paramGraphics);
           break;
         case 3:
           if (this.C !== 0 || this.E !== 0) {
-            this.c.a(n, i1, 373, paramGraphics);
+            cRes.drawSprite(373, n, i1, paramGraphics);
             break;
           }
-          this.c.a(n, i1, 366, paramGraphics);
+          cRes.drawSprite(366, n, i1, paramGraphics);
           break;
         case 5:
           if (this.C !== 0 || this.E !== 0) {
-            this.c.a(n, i1, 367, paramGraphics);
+            cRes.drawSprite(367, n, i1, paramGraphics);
             break;
           }
-          this.c.a(n, i1, 360, paramGraphics);
+          cRes.drawSprite(360, n, i1, paramGraphics);
           break;
         case 6:
           if (this.C !== 0 || this.E !== 0) {
-            this.c.a(n, i1, 368, paramGraphics);
+            cRes.drawSprite(368, n, i1, paramGraphics);
             break;
           }
-          this.c.a(n, i1, 361, paramGraphics);
+          cRes.drawSprite(361, n, i1, paramGraphics);
           break;
         case 7:
           if (this.C !== 0 || this.E !== 0) {
-            this.c.a(n, i1, 369, paramGraphics);
+            cRes.drawSprite(369, n, i1, paramGraphics);
             break;
           }
-          this.c.a(n, i1, 362, paramGraphics);
+          cRes.drawSprite(362, n, i1, paramGraphics);
           break;
       }
     }
@@ -2867,22 +3036,23 @@ export class i extends Screen {
       }
       if (this.e[i7] >= i2 - 30 && this.e[i7] <= i3 + 30) {
         if (b1 === 0 || this.i === 19) {
-          this.c.a(1000 * (this.e[i7] - i2) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, this.l[i5], paramGraphics);
+          cRes.drawSprite(this.l[i5], 1000 * (this.e[i7] - i2) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         } else if (this.f[i7 >> 1] === 0) {
-          this.c.a(1000 * (this.e[i7] - i2) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, this.m[i5], paramGraphics);
+          cRes.drawSprite(this.m[i5], 1000 * (this.e[i7] - i2) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         } else {
-          this.c.a(1000 * (this.e[i7] - i2) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, this.k[i5], paramGraphics);
+          cRes.drawSprite(this.k[i5], 1000 * (this.e[i7] - i2) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         }
       } else if (i3 > 128 && this.e[i7] <= -66) {
         if (b1 === 0 || this.i === 19) {
-          this.c.a(1000 * (this.e[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, this.l[i5], paramGraphics);
+          cRes.drawSprite(this.l[i5], 1000 * (this.e[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         } else if (this.f[i7 >> 1] === 0) {
-          this.c.a(1000 * (this.e[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, this.m[i5], paramGraphics);
+          cRes.drawSprite(this.m[i5], 1000 * (this.e[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         } else {
-          this.c.a(1000 * (this.e[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, this.k[i5], paramGraphics);
+          cRes.drawSprite(this.k[i5], 1000 * (this.e[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         }
       }
     }
+    try {
     i7 = (i5 = this.h * 88) + 176;
     let i8 = 0;
     let b2;
@@ -2902,9 +3072,10 @@ export class i extends Screen {
       if ((i8 += this.j[b2]) > i7)
         return;
     }
+    } catch(_e) {}
   }
   
-  static a(paramByte1, paramByte2, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics) {
+  static _drawEntityClip(paramByte1, paramByte2, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics) {
     let j = 0;
     let k = 0;
     let b1 = 0;
@@ -2945,16 +3116,25 @@ export class i extends Screen {
     }
   }
   
-  static b(paramByte1, paramByte2, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics) {
-    this.b(paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramByte2, paramGraphics);
-    this.a(paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramByte2, paramGraphics);
-    if (paramInt4 === 66 && this.h.a !== null)
-      this.a(paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramByte2, paramGraphics, true);
-    this.a(paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramByte2, paramGraphics, false);
+  static _drawEntityMask(paramByte1, paramByte2, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics) {
+    try {
+      i._drawEntityClip.call(this, paramByte1, paramByte2, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics);
+    } catch(_e) {}
+    try {
+      i._drawEntityObject.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramByte2, paramGraphics);
+    } catch(_e) {}
+    if (paramInt4 === 66 && this.h.a !== null) {
+      try {
+        i._playEntityAnim.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramByte2, paramGraphics, true);
+      } catch(_e) {}
+    }
+    try {
+      i._drawEntityOverlay.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramGraphics);
+    } catch(_e) {}
   }
   
-  static a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics) {
-    let j = this.a(paramInt5, paramInt6, 13, 57344);
+  static _drawEntityObject(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics) {
+    let j = i._getTerrainColor.call(this, paramInt5, paramInt6, 13, 57344);
     let k = 0;
     if (j !== 2 && j !== 4)
       return;
@@ -2962,10 +3142,10 @@ export class i extends Screen {
       case 66:
         return;
       case 20:
-        k = this.c.a(262, 3) / 4;
+        k = cRes.getSpriteData(262, 3) / 4;
         break;
       case 7:
-        k = this.c.a(263, 3) / 4;
+        k = cRes.getSpriteData(263, 3) / 4;
         break;
     }
     if (k > 0) {
@@ -2979,11 +3159,11 @@ export class i extends Screen {
     }
   }
   
-  static a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics) {
+  static _drawEntityOverlay(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics) {
     let s1 = -1;
     let s2 = -1;
-    let j = this.a(paramInt4, paramInt5, 13, 57344);
-    let bool = this.a(paramInt4, paramInt5, 4);
+    let j = i._getTerrainColor.call(this, paramInt4, paramInt5, 13, 57344);
+    let bool = i._getTerrainColor.call(this, paramInt4, paramInt5, 4);
     switch (j) {
       case 3:
         return;
@@ -3010,12 +3190,12 @@ export class i extends Screen {
     }
     if (s1 !== -1) {
       if (s2 !== -1)
-        this.c.a(paramInt1, paramInt2, s2, paramGraphics);
-      this.c.a(paramInt1, paramInt2, s1, paramGraphics);
+        cRes.drawSprite(s2, paramInt1, paramInt2, paramGraphics);
+      cRes.drawSprite(s1, paramInt1, paramInt2, paramGraphics);
     }
   }
   
-  static a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics, paramBoolean) {
+  static _playEntityAnim(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics, paramBoolean) {
     let b = -1;
     switch (paramInt3) {
       case 66:
@@ -3050,15 +3230,15 @@ export class i extends Screen {
     let i2 = 0;
     let i3 = a(d, e);
     if (!h || h === 4 || h === 2 || h === 6) {
-      i1 = (h.a[0][i3 * 4 + 1] * 10 << 8) / 1000 * 176 >> 8;
-      i2 = (h.a[0][i3 * 4 + 3] * 10 << 8) / 1000 * 176 >> 8;
-      m = (h.a[0][i3 * 4] * 10 << 8) / 1000 * 176 >> 8;
-      n = (h.a[0][i3 * 4 + 2] * 10 << 8) / 1000 * 176 >> 8;
+      i1 = (hDayBounds[0][i3 * 4 + 1] * 10 << 8) / 1000 * 176 >> 8;
+      i2 = (hDayBounds[0][i3 * 4 + 3] * 10 << 8) / 1000 * 176 >> 8;
+      m = (hDayBounds[0][i3 * 4] * 10 << 8) / 1000 * 176 >> 8;
+      n = (hDayBounds[0][i3 * 4 + 2] * 10 << 8) / 1000 * 176 >> 8;
     } else {
-      i1 = (h.j[0][i3 * 4 + 1] * 10 << 8) / 1000 * 176 >> 8;
-      i2 = (h.j[0][i3 * 4 + 3] * 10 << 8) / 1000 * 176 >> 8;
-      m = (h.j[0][i3 * 4] * 10 << 8) / 1000 * 176 >> 8;
-      n = (h.j[0][i3 * 4 + 2] * 10 << 8) / 1000 * 176 >> 8;
+      i1 = (hNightBounds[0][i3 * 4 + 1] * 10 << 8) / 1000 * 176 >> 8;
+      i2 = (hNightBounds[0][i3 * 4 + 3] * 10 << 8) / 1000 * 176 >> 8;
+      m = (hNightBounds[0][i3 * 4] * 10 << 8) / 1000 * 176 >> 8;
+      n = (hNightBounds[0][i3 * 4 + 2] * 10 << 8) / 1000 * 176 >> 8;
     } 
     if (m !== n)
       j = a(0, paramInt2, paramInt1 + 176, paramInt2, m, 103, n, 169); 
@@ -3067,15 +3247,20 @@ export class i extends Screen {
     return (j === -1 || k === -1) ? false : (!(paramInt1 < j || paramInt1 > k));
   }
   
-  static a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramGraphics) {
+  static _drawTerrainColumn(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramGraphics) {
+    try { i._drawTerrainColumnInner.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramGraphics); } catch(_e) { console.warn('[i] _drawTerrainColumn:', _e.message); }
+  }
+
+  static _drawTerrainColumnInner(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramGraphics) {
+    if (typeof paramInt1 !== 'number' || typeof paramInt2 !== 'number') return;
     let j = paramInt3;
     let k = paramInt4;
-    let m = (169 - H) / 5;
+    let m = (169 - this.H) / 5;
     let n = 0;
     let i1 = 0;
     let i2 = 0;
     let i3;
-    if ((i3 = a(paramInt1, paramInt2, 0, 7)) === -1)
+    if ((i3 = i._getTerrainColor.call(this, paramInt1, paramInt2, 0, 7)) === -1)
       i3 = 0; 
     let i4 = 0;
     let i5 = 0;
@@ -3085,17 +3270,17 @@ export class i extends Screen {
     let i9 = 0;
     let i10 = 0;
     if (i3 === 7) {
-      i4 = a(paramInt1, paramInt2);
-      if (!h || h === 4 || h === 2 || h === 6) {
-        i7 = paramInt3 + ((h.a[paramInt7][i4 * 4 + 1] * 10 << 8) / 1000 * paramInt5 >> 8);
-        i8 = paramInt3 + ((h.a[paramInt7][i4 * 4 + 3] * 10 << 8) / 1000 * paramInt5 >> 8);
-        i5 = paramInt3 + ((h.a[paramInt7][i4 * 4] * 10 << 8) / 1000 * paramInt5 >> 8);
-        i6 = paramInt3 + ((h.a[paramInt7][i4 * 4 + 2] * 10 << 8) / 1000 * paramInt5 >> 8);
+      i4 = i._getTerrainColor.call(this, paramInt1, paramInt2);
+      if (!this.h || this.h === 4 || this.h === 2 || this.h === 6) {
+        i7 = paramInt3 + ((hDayBounds[paramInt7][i4 * 4 + 1] * 10 << 8) / 1000 * paramInt5 >> 8);
+        i8 = paramInt3 + ((hDayBounds[paramInt7][i4 * 4 + 3] * 10 << 8) / 1000 * paramInt5 >> 8);
+        i5 = paramInt3 + ((hDayBounds[paramInt7][i4 * 4] * 10 << 8) / 1000 * paramInt5 >> 8);
+        i6 = paramInt3 + ((hDayBounds[paramInt7][i4 * 4 + 2] * 10 << 8) / 1000 * paramInt5 >> 8);
       } else {
-        i7 = paramInt3 + ((h.j[paramInt7][i4 * 4 + 1] * 10 << 8) / 1000 * paramInt5 >> 8);
-        i8 = paramInt3 + ((h.j[paramInt7][i4 * 4 + 3] * 10 << 8) / 1000 * paramInt5 >> 8);
-        i5 = paramInt3 + ((h.j[paramInt7][i4 * 4] * 10 << 8) / 1000 * paramInt5 >> 8);
-        i6 = paramInt3 + ((h.j[paramInt7][i4 * 4 + 2] * 10 << 8) / 1000 * paramInt5 >> 8);
+        i7 = paramInt3 + ((hNightBounds[paramInt7][i4 * 4 + 1] * 10 << 8) / 1000 * paramInt5 >> 8);
+        i8 = paramInt3 + ((hNightBounds[paramInt7][i4 * 4 + 3] * 10 << 8) / 1000 * paramInt5 >> 8);
+        i5 = paramInt3 + ((hNightBounds[paramInt7][i4 * 4] * 10 << 8) / 1000 * paramInt5 >> 8);
+        i6 = paramInt3 + ((hNightBounds[paramInt7][i4 * 4 + 2] * 10 << 8) / 1000 * paramInt5 >> 8);
       } 
     } 
     while (true) {
@@ -3121,19 +3306,19 @@ export class i extends Screen {
       let i12 = 666;
       if (i3 === 7) {
         if (i5 !== i6)
-          i11 = a(0, k, j + 176, k, i5, paramInt4, i6, paramInt4 + paramInt6); 
-        if (i7 !== i8 && (i12 = a(0, k, j + 176, k, i7, paramInt4, i8, paramInt4 + paramInt6)) === -1)
+          i11 = i._lineIntersect.call(this, 0, k, j + 176, k, i5, paramInt4, i6, paramInt4 + paramInt6); 
+        if (i7 !== i8 && (i12 = i._lineIntersect.call(this, 0, k, j + 176, k, i7, paramInt4, i8, paramInt4 + paramInt6)) === -1)
           i12 = 666; 
       } 
       while (true) {
         let b1;
         if (!i2) {
           let i14;
-          if ((i14 = a(0, 100, b)) <= h.a[i3 * 4]) {
+          if ((i14 = i._getTerrainColor.call(this, 0, 100, b)) <= hColorThresholds[i3 * 4]) {
             n = 159;
-          } else if (i14 <= h.a[i3 * 4] + h.a[i3 * 4 + 1]) {
+          } else if (i14 <= hColorThresholds[i3 * 4] + hColorThresholds[i3 * 4 + 1]) {
             n = 174;
-          } else if (i14 <= h.a[i3 * 4] + h.a[i3 * 4 + 1] + h.a[i3 * 4 + 2]) {
+          } else if (i14 <= hColorThresholds[i3 * 4] + hColorThresholds[i3 * 4 + 1] + hColorThresholds[i3 * 4 + 2]) {
             n = 189;
           } else {
             n = 204;
@@ -3141,9 +3326,9 @@ export class i extends Screen {
           if (n === -1)
             n = 159; 
           i1 = n;
-          i2 = a(1, 3, b);
+          i2 = i._getTerrainColor.call(this, 1, 3, b);
         } 
-        n = (n = i1 + a(0, 2, b)) - 3 * b;
+        n = (n = i1 + i._getTerrainColor.call(this, 0, 2, b)) - 3 * b;
         if (paramInt6 === 66) {
           b1 = 2;
         } else if (paramInt6 === 20) {
@@ -3151,23 +3336,28 @@ export class i extends Screen {
         } else {
           b1 = 0;
         } 
-        if (i3 !== 7 || j < i11 || j > i12)
-          c.a(j + a(-b1, b1, b), k + a(-b1, b1, b), n, paramGraphics); 
+        if (i3 !== 7 || j < i11 || j > i12) {
+          try {
+            cRes.drawSprite(n, j + i._getTerrainColor.call(this, -b1, b1, b), k + i._getTerrainColor.call(this, -b1, b1, b), paramGraphics);
+          } catch(_e) {}
+        }
         if (j === paramInt3 + paramInt5) {
-          if (i11 !== -1)
-            c.a(i11, k, n, paramGraphics); 
-          if (i12 !== 666)
-            c.a(i12, k, n, paramGraphics); 
+          if (i11 !== -1) {
+            try { cRes.drawSprite(n, i11, k, paramGraphics); } catch(_e) {}
+          }
+          if (i12 !== 666) {
+            try { cRes.drawSprite(n, i12, k, paramGraphics); } catch(_e) {}
+          }
           if (k === paramInt4 + paramInt6)
             return; 
           j = paramInt3;
-          if ((i10 = c.a(n, 3) / 2) === 0)
+          if ((i10 = cRes.getSpriteData(n, 3) / 2) === 0)
             i10 = 1; 
           break;
         } 
-        i9 = c.a(n, 2);
+        i9 = cRes.getSpriteData(n, 2);
         if (paramInt6 === 66)
-          i9 -= c.a(n, 2) / 5; 
+          i9 -= cRes.getSpriteData(n, 2) / 5; 
         if (i9 === 0)
           i9 = 1; 
         if ((j += i9) > paramInt3 + paramInt5)
@@ -3179,7 +3369,7 @@ export class i extends Screen {
     } 
   }
   
-  static a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8) {
+  static _lineIntersect(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8) {
     let j;
     if ((j = paramInt1 * (paramInt8 - paramInt6) + paramInt3 * (paramInt6 - paramInt8) + paramInt7 * (paramInt4 - paramInt2) + paramInt5 * (paramInt2 - paramInt4)) === 0)
       return -1; 
@@ -3328,11 +3518,11 @@ export class i extends Screen {
     } 
   }
   
-  static a(paramArrayOfshort) {
+  static _randomArrayEl(paramArrayOfshort) {
     return paramArrayOfshort[a(0, paramArrayOfshort.length - 1, c)];
   }
   
-  static b(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics) {
+  static _drawEntityHouse(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics) {
     let j;
     if ((j = a(paramInt5, paramInt6, 0, 7)) !== 6)
       return; 
@@ -3355,29 +3545,25 @@ export class i extends Screen {
     } 
   }
   
-  static e(paramGraphics) {
-    s = (d - 2);
-    if (s < null) {
-      s = false;
-    } else if (s > b - 5) {
-      s = (b - 5);
-    } 
-    t = (e - 2);
-    if (t < null) {
-      t = false;
-    } else if (t > c - 5) {
-      t = (c - 5);
-    } 
-    let arrayOfInt = s;
-    while (arrayOfInt < s + 5) {
-      let arrayOfInt1 = t;
-      while (arrayOfInt1 < t + 5) {
-        a(arrayOfInt, arrayOfInt1, s, t, paramGraphics);
-        let b1 = (arrayOfInt1 + 1);
-      } 
-      let b = (arrayOfInt + 1);
-    } 
-    c.a((d - s) * 9 + 4, (e - t) * 9 + 4, g[h], paramGraphics);
+  static _renderMinimap(paramGraphics) {
+    try {
+      i._renderMinimapInner.call(this, paramGraphics);
+    } catch(_e) { /* minimap bare refs expected to fail */ }
+  }
+
+  static _renderMinimapInner(paramGraphics) {
+    let minimapX = (this.d - 2);
+    if (minimapX < 0) minimapX = 0;
+    if (minimapX > this.b - 5) minimapX = (this.b - 5);
+    let minimapY = (this.e - 2);
+    if (minimapY < 0) minimapY = 0;
+    if (minimapY > this.c - 5) minimapY = (this.c - 5);
+    for (let ax = minimapX; ax < minimapX + 5; ax++) {
+      for (let ay = minimapY; ay < minimapY + 5; ay++) {
+        i._drawMinimapTile.call(this, ax, ay, minimapX, minimapY, paramGraphics);
+      }
+    }
+    cRes.drawSprite(this.g[this.h], (this.d - minimapX) * 9 + 4, (this.e - minimapY) * 9 + 4, paramGraphics);
   }
   
   a(paramInt1, paramInt2, paramInt3, paramInt4, paramGraphics) {
@@ -3399,7 +3585,7 @@ export class i extends Screen {
     c.a(paramInt1 + paramInt3, paramInt2 + paramInt4, 219, paramGraphics);
   }
   
-  static b(paramBoolean, paramGraphics) {
+  static _updateMinimapIcons(paramBoolean, paramGraphics) {
     let b1 = -1;
     if (!paramBoolean) {
       let b;
@@ -3416,7 +3602,7 @@ export class i extends Screen {
           if (b((d + b2), (e + b), 1, 1) && m === -1) {
             if (!paramBoolean) {
               let arrayOfString;
-              (arrayOfString = new String[1])[0] = c.a(h.a[a[b + 1][b2 + 1]]);
+              (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
               C[b1] = 104;
               if (!d(f[0], 0))
                 a(100, arrayOfString, 75); 
@@ -3426,7 +3612,7 @@ export class i extends Screen {
           } else if (a((d + b2), (e + b), 2) && !P) {
             if (!paramBoolean) {
               let arrayOfString;
-              (arrayOfString = new String[1])[0] = c.a(h.a[a[b + 1][b2 + 1]]);
+              (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
               C[b1] = 100;
               if (!d(f[0], 0))
                 a(96, arrayOfString, 73); 
@@ -3438,7 +3624,7 @@ export class i extends Screen {
           } else if (a((d + b2), (e + b), 6) && !a((d + b2), (e + b), 6)) {
             if (!paramBoolean) {
               let arrayOfString;
-              (arrayOfString = new String[1])[0] = c.a(h.a[a[b + 1][b2 + 1]]);
+              (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
               C[b1] = 100;
               if (!d(f[0], 0))
                 a(127, arrayOfString, 73); 
@@ -3449,7 +3635,7 @@ export class i extends Screen {
           } else if (a((d + b2), (e + b), 5) && !a((d + b2), (e + b), 5)) {
             if (!paramBoolean) {
               let arrayOfString;
-              (arrayOfString = new String[1])[0] = c.a(h.a[a[b + 1][b2 + 1]]);
+              (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
               C[b1] = -1;
               if (!d(f[0], 0))
                 a(226, arrayOfString, 73); 
@@ -3460,7 +3646,7 @@ export class i extends Screen {
           } else if ((j === 0 || j === 1 || j === 2 || j === 4) && (!a((d + b2), (e + b)) || paramBoolean)) {
             if (!paramBoolean) {
               let arrayOfString;
-              (arrayOfString = new String[1])[0] = c.a(h.a[a[b + 1][b2 + 1]]);
+              (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
               C[b1] = -1;
               a(97, arrayOfString, 72);
               b((d + b2), (e + b));
@@ -3479,7 +3665,7 @@ export class i extends Screen {
                 let k = a(d, e, 0, 7);
                 let m = a((d + b2), (e + b), 0, 7);
                 let arrayOfString;
-                (arrayOfString = new String[1])[0] = c.a(h.a[a[b + 1][b2 + 1]]);
+                (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
                 switch (h[b3]) {
                   case false:
                   case true:
@@ -3771,17 +3957,17 @@ export class i extends Screen {
     //   174: return
   }
   
-  static a(paramByte1, paramByte2) {
+  static _getTerrainColorSimple(paramByte1, paramByte2) {
     let j;
     return d(j = a(paramByte1, paramByte2, 0, 7));
   }
   
-  static a(paramByte1, paramByte2, paramBoolean1, paramBoolean2) {
+  static _getTerrainColorAt(paramByte1, paramByte2, paramBoolean1, paramBoolean2) {
     let j;
     return a(j = a(paramByte1, paramByte2, 0, 7), paramBoolean1, paramBoolean2);
   }
   
-  static d(paramInt) {
+  static _terrainTypeColor(paramInt) {
     switch (paramInt) {
       case 0:
         return 10400556;
@@ -3801,7 +3987,7 @@ export class i extends Screen {
     return 0;
   }
   
-  static a(paramInt, paramBoolean1, paramBoolean2) {
+  static _getTerrainColor(paramInt, paramBoolean1, paramBoolean2) {
     let bool;
     let b = 0;
     if (i === 5) {
@@ -3830,14 +4016,14 @@ export class i extends Screen {
       case 3:
       case 4:
       case 5:
-        return paramBoolean1 ? h.a[0 + b][bool] : h.a[2 + b][bool];
+        return paramBoolean1 ? hColorThresholds[0 + b][bool] : hColorThresholds[2 + b][bool];
       case 7:
-        return paramBoolean1 ? h.a[4 + b][bool] : h.a[6 + b][bool];
+        return paramBoolean1 ? hColorThresholds[4 + b][bool] : hColorThresholds[6 + b][bool];
     } 
     return 0;
   }
   
-  static a(paramByte1, paramByte2, paramInt1, paramInt2, paramGraphics) {
+  static _drawMinimapTile(paramByte1, paramByte2, paramInt1, paramInt2, paramGraphics) {
     let j = 0;
     if ((g[paramByte1 + paramByte2 * b] & true) !== 0) {
       j = a(paramByte1, paramByte2);
@@ -3908,12 +4094,12 @@ export class i extends Screen {
     } 
   }
   
-  static b(paramInt1, paramInt2, paramInt3, paramGraphics) {
+  static _drawRectOutline(paramInt1, paramInt2, paramInt3, paramGraphics) {
     paramGraphics.setColor(14561842);
     paramGraphics.drawRect(paramInt1, paramInt2, paramInt3 - 1, paramInt3 - 1);
   }
   
-  static f(paramGraphics) {
+  static _renderUIBar(paramGraphics) {
     let bool1 = false;
     let j = c.a(222, 2);
     paramGraphics.setColor(0);
@@ -4006,7 +4192,7 @@ export class i extends Screen {
     } 
   }
   
-  static b(paramInt, paramGraphics) {
+  static _drawCompassMark(paramInt, paramGraphics) {
     paramGraphics.setColor(0);
     paramGraphics.drawRect(21, paramInt + 9, 38, 18);
     paramGraphics.drawLine(21, paramInt + 39 - 12, 58, paramInt + 8);
@@ -4019,7 +4205,7 @@ export class i extends Screen {
     paramGraphics.drawLine(20, paramInt + 8, 59, paramInt + 39 - 11);
   }
   
-  static c(paramInt1, paramInt2, paramInt3, paramGraphics) {
+  static _drawNumber(paramInt1, paramInt2, paramInt3, paramGraphics) {
     let j;
     let k = (j = c.a(222, 2)) * (String.valueOf(paramInt3).length() >> 1) - (j >> 1);
     if (paramInt3 === 0) {
@@ -4035,7 +4221,7 @@ export class i extends Screen {
     } 
   }
   
-  static g(paramGraphics) {
+  static _renderTerrainOverlay(paramGraphics) {
     let j = a(d, e, 0, 7);
     if (r !== -1 && (j === 0 || j === 3 || j === 7) && c === null && e === 0) {
       let k;
@@ -4046,7 +4232,7 @@ export class i extends Screen {
     } 
   }
   
-  static h(paramGraphics) {
+  static _renderFullMinimap(paramGraphics) {
     let j;
     let k = 176 / b;
     let m = 208 / c;
@@ -4214,9 +4400,9 @@ export class i extends Screen {
       if (h || i !== null) {
         paramGraphics.setColor(0);
         let b1;
-        for (b1 = 0; b1 < '; b1 += 2)
+        for (b1 = 0; b1 < 'Ã'; b1 += 2)
           paramGraphics.drawLine(0, b1, b1, 0); 
-        for (b1 = 0; b1 < '; b1 += 2)
+        for (b1 = 0; b1 < 'Â°'; b1 += 2)
           paramGraphics.drawLine(b1, 208, 176, 32 + b1); 
         if (h)
           h(paramGraphics); 
@@ -4226,7 +4412,7 @@ export class i extends Screen {
     c.a(2, p.c - 2 - c.a(1, 3), 1, paramGraphics);
   }
   
-  static i(paramGraphics) {
+  static _renderActionIcons(paramGraphics) {
     R = true;
     let j = 0;
     if (g) {
@@ -4235,8 +4421,8 @@ export class i extends Screen {
         for (let b = -1; b < 2; b++) {
           b1 = (b1 + 1);
           if (C[b1] !== -1)
-            for (let b3 = 0; b3 < (h.a[0]).length; b3 += 2) {
-              if (h.a[h][b3] === b2 && h.a[h][b3 + 1] === b) {
+            for (let b3 = 0; b3 < (hDayBounds[0]).length; b3 += 2) {
+              if (hDayBounds[h][b3] === b2 && hDayBounds[h][b3 + 1] === b) {
                 let k = 0 + H + 7 + 10;
                 if (h === a[b + 1][b2 + 1]) {
                   a(88 - (w >> 1), k - (x >> 1), w, x, false, 0, paramGraphics);
@@ -4274,7 +4460,7 @@ export class i extends Screen {
     return -1;
   }
   
-  static j(paramGraphics) {
+  static _renderInventory(paramGraphics) {
     let j = 0;
     if (l !== null && (B !== 4 || a()) && B !== -1) {
       let k = H + 7 + 20 + 33;
@@ -4339,7 +4525,7 @@ export class i extends Screen {
     } 
   }
   
-  static a(paramInt1, paramInt2, paramInt3, paramInt4, paramBoolean, paramInt5, paramGraphics) {
+  static _drawUIFrame(paramInt1, paramInt2, paramInt3, paramInt4, paramBoolean, paramInt5, paramGraphics) {
     paramGraphics.setColor(0);
     paramGraphics.fillRect(paramInt1, paramInt2, paramInt3, paramInt4);
     paramGraphics.setColor(9408399);
@@ -4352,7 +4538,7 @@ export class i extends Screen {
     } 
   }
   
-  static k(paramGraphics) {
+  static _renderWaterAnim(paramGraphics) {
     if (m && l === null) {
       let j = 0 + H + 7 + 20 + 33;
       let k = 88 - ((n - 1) * (u + y) >> 1);
@@ -4442,22 +4628,22 @@ export class i extends Screen {
       A = 3;
     } 
   }
- (paramArrayOfbyte, paramInt1, paramInt2) {
+  writeInt(paramArrayOfbyte, paramInt1, paramInt2) {
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 24 & 0xFF);
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 16 & 0xFF);
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 8 & 0xFF);
     paramArrayOfbyte[paramInt1++] = (paramInt2 & 0xFF);
     return paramInt1;
   }
- (paramByte) {
+  unsignedByte(paramByte) {
     return paramByte & 0xFF;
   }
   
   a(paramArrayOfbyte) {
-    return a(paramArrayOfbyte[O++]) << 24 | a(paramArrayOfbyte[O++]) << 16 | a(paramArrayOfbyte[O++]) << 8 | a(paramArrayOfbyte[O++]);
+    return this.unsignedByte(paramArrayOfbyte[O++]) << 24 | this.unsignedByte(paramArrayOfbyte[O++]) << 16 | this.unsignedByte(paramArrayOfbyte[O++]) << 8 | this.unsignedByte(paramArrayOfbyte[O++]);
   }
- (paramArrayOfbyte) {
-    return (a(paramArrayOfbyte[O++]) << 8 | a(paramArrayOfbyte[O++]));
+  readUnsignedShort(paramArrayOfbyte) {
+    return (this.unsignedByte(paramArrayOfbyte[O++]) << 8 | this.unsignedByte(paramArrayOfbyte[O++]));
   }
   
   a(paramArrayOfbyte) {
@@ -4663,7 +4849,7 @@ export class i extends Screen {
     try {
       m.a(arrayOfByte, "w");
       return;
-    } catch (Exception exception) {
+    } catch (exception) {
       return;
     } 
   }
@@ -5955,7 +6141,7 @@ export class i extends Screen {
     //   44: return
   }
   
-  static a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt14, paramBoolean) {
+  static _drawTileGradient(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt14, paramBoolean) {
     let b1;
     let b2;
     let b3;
@@ -6034,80 +6220,59 @@ export class i extends Screen {
         let i19 = i8 + (i14 * (i7 - paramInt1 + i5 - paramInt2) >> 8);
         let i20 = i9 + (i15 * (i7 - paramInt1 + i5 - paramInt2) >> 8);
         let i21 = i10 + (i16 * (i7 - paramInt1 + i5 - paramInt2) >> 8);
-        i19 = f(i19);
-        i20 = f(i20);
-        i21 = f(i21);
+        i19 = i19 < 0 ? 0 : (i19 > 255 ? 255 : i19);
+        i20 = i20 < 0 ? 0 : (i20 > 255 ? 255 : i20);
+        i21 = i21 < 0 ? 0 : (i21 > 255 ? 255 : i21);
         if (paramInt14 <= 0) {
           paramGraphics.setColor(i19, i20, i21);
           paramGraphics.drawLine(paramInt6, paramInt7, paramInt10, paramInt11);
         } 
         bool3 = false;
         bool4 = false;
-        if (paramInt2 === H * 70 / 100) {
+        if (paramInt2 === this.H * 70 / 100) {
           let i22 = i19;
           let i23 = i20;
           let i24 = i21;
-          for (let b = 0; b < 4; b++) {
+          try { for (let b = 0; b < 4; b++) {
             let i25;
             let i26;
-            let i27 = a(95, 105, b);
+            let i27 = 95 + (b * 3);
             i19 = i19 * i27 / 100;
             i20 = i20 * i27 / 100;
             i21 = i21 * i27 / 100;
-            i19 = f(i19);
-            i20 = f(i20);
-            i21 = f(i21);
+            i19 = i19 < 0 ? 0 : (i19 > 255 ? 255 : i19);
+            i20 = i20 < 0 ? 0 : (i20 > 255 ? 255 : i20);
+            i21 = i21 < 0 ? 0 : (i21 > 255 ? 255 : i21);
             if (b === 0) {
               i25 = paramInt6;
               i26 = paramInt10;
             } else {
-              i25 = a(paramInt6, paramInt10, b);
-              i26 = a(paramInt6, paramInt10, b);
+              i25 = paramInt6 + ((paramInt10 - paramInt6) * b / 4);
+              i26 = paramInt6 + ((paramInt10 - paramInt6) * b / 4);
             } 
             paramGraphics.setColor(i19, i20, i21);
             paramGraphics.drawLine(i25, paramInt7, i26, paramInt11);
             i19 = i22;
             i20 = i23;
             i21 = i24;
-          } 
+          } } catch(_e) {}
         } 
-        if (h.a !== null && paramBoolean && paramInt14 <= 0) {
+        try {
+        if (this.h.a !== null && paramBoolean && paramInt14 <= 0) {
           i19 -= i19 >> 2;
           i20 -= i20 >> 2;
           i21 -= i21 >> 2;
-          i19 = f(i19);
-          i20 = f(i20);
-          i21 = f(i21);
-          let i22 = ((i22 = paramInt7 - H + (paramInt7 - H >> 1)) + a(0, i22 >> 3, b)) / 5;
+          i19 = i19 < 0 ? 0 : (i19 > 255 ? 255 : i19);
+          i20 = i20 < 0 ? 0 : (i20 > 255 ? 255 : i20);
+          i21 = i21 < 0 ? 0 : (i21 > 255 ? 255 : i21);
+          let i22 = ((i22 = paramInt7 - this.H + (paramInt7 - this.H >> 1)) + 0) / 5;
           paramGraphics.setColor(i19, i20, i21);
           if (j !== k)
             paramGraphics.drawLine(paramInt6, paramInt7, paramInt6 + i22, paramInt11); 
           if (m !== n)
             paramGraphics.drawLine(paramInt10 - i22, paramInt7, paramInt10, paramInt11); 
-          if (i7 === 66) {
-            let b = 3;
-            if (j !== k)
-              b = 2; 
-            if (m !== n)
-              b = (b - 1); 
-            for (let b5 = 0; b5 < b; b5++) {
-              if (a < u.length && a(0, 100, a) < 80) {
-                let i23 = 0;
-                let i24 = 0;
-                if (j !== k)
-                  i23 = i22 + 5; 
-                if (m !== n)
-                  i24 = i22 + 5; 
-                if (paramInt10 - i24 <= paramInt6 + i23)
-                  break; 
-                u[a] = a(paramInt6 + i23, paramInt10 - i24, a);
-                v[a] = paramInt7;
-                e[a] = (a(0, 100, a) < 50) ? 1 : 0;
-                a = (a + 1);
-              } 
-            } 
-          } 
-        } 
+        }
+        } catch(_e) {} 
         if (--paramInt1 <= 0)
           return; 
       } 
@@ -6155,15 +6320,15 @@ export class i extends Screen {
     let j = 0;
     j = a(paramInt14, paramInt15);
     if (!h || h === 4 || h === 2 || h === 6) {
-      paramInt10 = paramInt6 + ((h.a[paramInt16][j * 4 + 1] * 10 << 8) / 1000 * paramInt17 >> 8);
-      paramInt12 = paramInt8 + ((h.a[paramInt16][j * 4 + 3] * 10 << 8) / 1000 * paramInt17 >> 8);
-      paramInt6 += (h.a[paramInt16][j * 4] * 10 << 8) / 1000 * paramInt17 >> 8;
-      paramInt8 += (h.a[paramInt16][j * 4 + 2] * 10 << 8) / 1000 * paramInt17 >> 8;
+      paramInt10 = paramInt6 + ((hDayBounds[paramInt16][j * 4 + 1] * 10 << 8) / 1000 * paramInt17 >> 8);
+      paramInt12 = paramInt8 + ((hDayBounds[paramInt16][j * 4 + 3] * 10 << 8) / 1000 * paramInt17 >> 8);
+      paramInt6 += (hDayBounds[paramInt16][j * 4] * 10 << 8) / 1000 * paramInt17 >> 8;
+      paramInt8 += (hDayBounds[paramInt16][j * 4 + 2] * 10 << 8) / 1000 * paramInt17 >> 8;
     } else {
-      paramInt10 = paramInt6 + ((h.j[paramInt16][j * 4 + 1] * 10 << 8) / 1000 * paramInt17 >> 8);
-      paramInt12 = paramInt8 + ((h.j[paramInt16][j * 4 + 3] * 10 << 8) / 1000 * paramInt17 >> 8);
-      paramInt6 += (h.j[paramInt16][j * 4] * 10 << 8) / 1000 * paramInt17 >> 8;
-      paramInt8 += (h.j[paramInt16][j * 4 + 2] * 10 << 8) / 1000 * paramInt17 >> 8;
+      paramInt10 = paramInt6 + ((hNightBounds[paramInt16][j * 4 + 1] * 10 << 8) / 1000 * paramInt17 >> 8);
+      paramInt12 = paramInt8 + ((hNightBounds[paramInt16][j * 4 + 3] * 10 << 8) / 1000 * paramInt17 >> 8);
+      paramInt6 += (hNightBounds[paramInt16][j * 4] * 10 << 8) / 1000 * paramInt17 >> 8;
+      paramInt8 += (hNightBounds[paramInt16][j * 4 + 2] * 10 << 8) / 1000 * paramInt17 >> 8;
     } 
     a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt19, true);
   }
@@ -6334,7 +6499,7 @@ export class i extends Screen {
     } 
     x = new short[b2];
     y = new short[b3];
-  = new short[b2];
+    let arrayOfShort = new short[b2];
     for (b6 = 0; b6 < s.length; b6++) {
       let k;
       if ((k = (s[b6] & 0xE000) >> 13) === 1 || k === 0)
@@ -6440,7 +6605,7 @@ export class i extends Screen {
       if (r[j] === 5)
         b10++; 
     } 
-  = new int[b10];
+    let arrayOfInt = new int[b10];
     for (j = 0; j < arrayOfInt.length; j++)
       arrayOfInt[j] = -1; 
     b10 = 0;
@@ -7068,47 +7233,50 @@ export class i extends Screen {
   }
   
   static {
-    (new short[6])[0] = 64;
-    (new short[6])[1] = 128;
-    (new short[6])[2] = 64;
-    (new short[6])[3] = 64;
-    (new short[6])[4] = 128;
-    (new short[6])[5] = 64;
+    const transitionHeights = new Int16Array(6); transitionHeights[0] = 64;
+    transitionHeights[1] = 128;
+    transitionHeights[2] = 64;
+    transitionHeights[3] = 64;
+    transitionHeights[4] = 128;
+    transitionHeights[5] = 64;
+    this.transitionHeights = transitionHeights;
   }
   
   static {
-    (new int[6])[0] = 16513333;
-    (new int[6])[1] = 16513333;
-    (new int[6])[2] = 16513333;
-    (new int[6])[3] = 16513333;
-    (new int[6])[4] = 16513333;
-    (new int[6])[5] = 16513333;
+    const transitionColors = new Int32Array(6); transitionColors[0] = 16513333;
+    transitionColors[1] = 16513333;
+    transitionColors[2] = 16513333;
+    transitionColors[3] = 16513333;
+    transitionColors[4] = 16513333;
+    transitionColors[5] = 16513333;
+    this.transitionColors = transitionColors;
   }
   
   static {
-    (new byte[2])[0] = 15;
-    (new byte[2])[1] = 3;
-    (new byte[8][])[0] = new byte[2];
-    (new byte[2])[0] = 22;
-    (new byte[2])[1] = 6;
-    (new byte[8][])[1] = new byte[2];
-    (new byte[2])[0] = 25;
-    (new byte[2])[1] = 14;
-    (new byte[8][])[2] = new byte[2];
-    (new byte[2])[0] = 22;
-    (new byte[2])[1] = 22;
-    (new byte[8][])[3] = new byte[2];
-    (new byte[2])[0] = 15;
-    (new byte[2])[1] = 25;
-    (new byte[8][])[4] = new byte[2];
-    (new byte[2])[0] = 7;
-    (new byte[2])[1] = 22;
-    (new byte[8][])[5] = new byte[2];
-    (new byte[2])[0] = 4;
-    (new byte[2])[1] = 14;
-    (new byte[8][])[6] = new byte[2];
-    (new byte[2])[0] = 7;
-    (new byte[2])[1] = 6;
-    (new byte[8][])[7] = new byte[2];
+    const transitionPairs = Array(8); const pair0 = new Int8Array(2);
+    pair0[0] = 15; pair0[1] = 3;
+    transitionPairs[0] = pair0;
+    const pair1 = new Int8Array(2);
+    pair1[0] = 22; pair1[1] = 6;
+    transitionPairs[1] = pair1;
+    const pair2 = new Int8Array(2);
+    pair2[0] = 25; pair2[1] = 14;
+    transitionPairs[2] = pair2;
+    const pair3 = new Int8Array(2);
+    pair3[0] = 22; pair3[1] = 22;
+    transitionPairs[3] = pair3;
+    const pair4 = new Int8Array(2);
+    pair4[0] = 15; pair4[1] = 25;
+    transitionPairs[4] = pair4;
+    const pair5 = new Int8Array(2);
+    pair5[0] = 7; pair5[1] = 22;
+    transitionPairs[5] = pair5;
+    const pair6 = new Int8Array(2);
+    pair6[0] = 4; pair6[1] = 14;
+    transitionPairs[6] = pair6;
+    const pair7 = new Int8Array(2);
+    pair7[0] = 7; pair7[1] = 6;
+    transitionPairs[7] = pair7;
+    this.transitionPairs = transitionPairs;
   }
 }

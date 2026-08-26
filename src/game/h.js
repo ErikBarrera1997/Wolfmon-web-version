@@ -9,6 +9,7 @@ import { a as WaitScreen } from './a.js';
 import { g as Transition } from './g.js';
 import { RecordStore } from '../j2me/RecordStore.js';
 import { i as GameScreen } from './i.js';
+import { d as CinemaScreen } from './d.js';
 
 const CX = 176 >> 1;
 const CY = 208 >> 1;
@@ -21,9 +22,13 @@ let objectives = new Int32Array(4);
 let hasSave = false;
 let worldLevel = 0;
 let gameScreen = null;
+let cinemaScreen = null;
 let soundLoaded = false;
 let soundBank = {};
 let cachedLangNames = null;
+let gameState = 0;
+let inGameState = false;
+let sceneCounter = 0;
 
 const upArrow = 85;
 const downArrow = 89;
@@ -266,16 +271,38 @@ export class h {
       }
 
       case 16: {
+        gameState = 1;
         m.setNextScreen(WaitScreen.createWaitScreen(-1));
-        n.stopPlayer();
-        const game = new GameScreen();
-        game.resetGameState();
-        waitForScreen(WaitScreen).then(() => {
-          loadMenuSprites().then(() => {
-            gameScreen = game;
-            showMenuOrGame();
-          });
+        waitForScreen(WaitScreen).then(async () => {
+          await unloadWorldSpritesAsync();
+          worldLevel = 0;
+          await loadWorldSpritesForLevel(0);
+          if (!cinemaScreen) cinemaScreen = new CinemaScreen();
+          cinemaScreen.showNewGameMenu();
+          inGameState = false;
+          sceneCounter = 1;
+          if (n.isSoundEnabled()) n.playSound(58, -1);
+          gameState = 4;
+          m.setNextScreen(cinemaScreen);
         });
+        return;
+      }
+
+      case 22:
+      case 25: {
+        gameState = 1;
+        if (cinemaScreen && cinemaScreen.scene > 7) sceneCounter = 0;
+        if (sceneCounter !== 0) {
+          m.setNextScreen(WaitScreen.createWaitScreen(-1));
+          loadWorldSpritesForLevel(worldLevel).then(() => {
+            gameState = 4;
+            if (n.isSoundEnabled()) n.playSound(58, -1);
+            m.setNextScreen(cinemaScreen);
+          });
+          return;
+        }
+        if (eventId === 22) inGameState = false;
+        loadGameWorldResources().then(() => startOrResumeGame());
         return;
       }
 
@@ -363,6 +390,60 @@ async function loadSoundBank() {
     }
     await c.unloadGroup(1);
   } catch (_e) { console.error('[Audio] loadSoundBank error:', _e); }
+}
+
+function unloadMenuSprites() {
+  try { c.unloadResource(2); } catch (_e) {}
+  try { c.unloadResource(46); } catch (_e) {}
+}
+
+async function unloadWorldSpritesAsync() {
+  const groups = [25,26,27,28,29,42,39,40,41,30,31,36,37,38,43,44,46];
+  for (const g of groups) {
+    try { await c.unloadResource(g); } catch (_e) {}
+  }
+}
+
+async function loadWorldSpritesForLevel(level) {
+  try { await c.loadResources(24); } catch (_e) {}
+  const levelGroups = {
+    0: [25,26,27,28,29],
+    1: [31], 2: [30,43], 3: [36], 4: [37], 5: [38],
+    6: [39,41], 7: [40,48], 8: [42], 9: [44], 10: [46,2]
+  };
+  const groups = levelGroups[level] || [];
+  for (const g of groups) {
+    try { await c.loadResources(g); } catch (_e) {}
+  }
+}
+
+async function createOffscreenBuffers() {
+  const groups = [24,53,23,6,7,8,9,15,17,18,10,11,12,13,20,21,16,14,45,22,47,48,49,50,51,32,33,34,35,19,52,54,55,56,57];
+  for (const g of groups) {
+    try { await c.loadResources(g); } catch (_e) {}
+  }
+}
+
+async function loadGameWorldResources() {
+  m.setNextScreen(WaitScreen.createWaitScreen(-1));
+  n.stopPlayer();
+  await waitForScreen(WaitScreen);
+  unloadMenuSprites();
+  await unloadWorldSpritesAsync();
+  if (!gameScreen) gameScreen = new GameScreen();
+  try { gameScreen.loadTileData(); } catch (_e) { console.warn('[h] loadTileData:', _e.message); }
+  await createOffscreenBuffers();
+}
+
+function startOrResumeGame() {
+  gameScreen.resetGameState();
+  if (worldLevel !== 0) {
+    try { gameScreen.loadWorldData(); } catch (_e) {}
+  }
+  gameScreen.playClickSound(false);
+  inGameState = true;
+  m.setNextScreen(gameScreen);
+  gameState = 3;
 }
 
 function showMenuOrGame() {
