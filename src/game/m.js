@@ -21,6 +21,7 @@ let renderRaf = null;
 let eventRunning = false;
 let destroyed = false;
 let cachedMenuBytes = null;
+let loopSeenScreen = null;
 
 export let _midlet = null;
 
@@ -96,6 +97,7 @@ export function createMenuStream() {
 }
 
 async function boot() {
+  console.log('[boot] boot() start');
   canvas = new o(canvasEl);
   canvas._currentScreen = null;
   Display.setCurrent(canvas);
@@ -104,11 +106,14 @@ async function boot() {
 
   const c = await import('../resources/c.js');
   c.init();
+  console.log('[boot] resources c.init() ok');
   const { loadAssetBytes } = await import('../resources/loader.js');
   cachedMenuBytes = await loadAssetBytes('m');
+  console.log('[boot] menu bytes ok (' + (cachedMenuBytes ? cachedMenuBytes.length : 0) + ')');
 
   const jMod = await import('./j.js');
   jMod.initArrays();
+  console.log('[boot] j.initArrays() ok');
 
   for (let i = 0; i < 5; i++) states[i] = 1;
   startRenderLoop();
@@ -117,8 +122,16 @@ async function boot() {
   const { h } = await import('./h.js');
   engine = new h();
   engineState = 2;
+  const marker = engine.handleEvent.toString().indexOf('handleEvent(1) begin');
+  console.log('[boot] engine created (fn=' + (typeof engine.handleEvent) + ' fresh=' + (marker !== -1) + ')');
+  console.log('[boot] location=' + (globalThis.location ? globalThis.location.href : '(node)'));
 
-  await engine.handleEvent(1);
+  try {
+    await engine.handleEvent(1);
+    console.log('[boot] handleEvent(1) done');
+  } catch (_e) {
+    console.error('[boot] handleEvent ERROR:', _e && _e.message, '\n' + (_e && _e.stack || ''));
+  }
 }
 
 function startRenderLoop() {
@@ -131,8 +144,8 @@ function startRenderLoop() {
       currentScreen = nextScreen;
       canvas._currentScreen = currentScreen;
       if (currentScreen) {
-        canvas.setBarText(currentScreen.a[0], 0);
-        canvas.setBarText(currentScreen.a[1], 1);
+        canvas.setBarText(currentScreen.aText[0], 0);
+        canvas.setBarText(currentScreen.aText[1], 1);
         canvas.setInputMode(currentScreen.d);
         currentScreen.screenEntered();
       }
@@ -141,7 +154,15 @@ function startRenderLoop() {
       const now = performance.now();
       const dt = lastTime ? Math.min(now - lastTime, 500) : 16;
       lastTime = now;
-      currentScreen.update(dt);
+      try {
+        currentScreen.update(dt);
+      } catch (_e) {
+        console.error('[m.js] loop update error:', _e && _e.message, '\n' + (_e && _e.stack || ''));
+      }
+    }
+    if (currentScreen && !loopSeenScreen) {
+      loopSeenScreen = currentScreen;
+      console.log('[boot] first currentScreen:', currentScreen.constructor && currentScreen.constructor.name);
     }
     renderRaf = requestAnimationFrame(loop);
   }

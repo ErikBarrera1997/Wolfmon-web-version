@@ -1,6 +1,19 @@
 import { Screen } from './p.js';
 import * as cRes from '../resources/c.js';
 import * as n from './n.js';
+import * as mEngine from './m.js';
+
+// Level-2 bridge: the porter's static methods reference several fields by
+// bare module-scope name (Java static-field style). Declare them so the
+// cascade keeps running instead of throwing ReferenceError; the correct
+// this.<field> routing is a later cleanup step. ('n' is the shared helper
+// module import above and 'i' is the exported class, so both are omitted.)
+let aa, ab, ac, ad, ae, af, ag, ah, ai, aj, ak, al, am, an, ao,
+  A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+  a, b, c, d, e, f, g, h, j, k, l, m, o, p, q, r, s, t, u, v, w, x, y, z,
+  arrayOfByte, b12, b13, b14, b2, b3, b4, b5, b6, b7, b8, b9,
+  b1, index, index1, index2, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12,
+  i13, i14, i15, i16, i17, i18, i19, i20, j1, j2, j3, j4, k0, k1, k2, k3, k4, k5, w9, h1, H2;
 
 
 // Tile data arrays from Java class h (terrain rendering)
@@ -26,6 +39,41 @@ const hNightBounds = [
   [60, 79, 13, 53, 60, 100, 13, 100, 0, 79, 0, 53, 0, 100, 0, 100],
   [63, 74, 30, 64, 63, 100, 30, 100, 0, 74, 0, 64, 0, 100, 0, 100]
 ];
+
+// Java class h: byte[] a (h.java:101) — per-tile-type (low 3 bits of tile)
+// ground-base probabilities: 4 values per tile type for bases 159/174/189/204.
+const hGroundProb = [45, 45, 5, 5, 60, 30, 5, 5, 80, 10, 5, 5, 5, 5, 45, 45, 5, 5, 60, 30, 5, 5, 80, 10, 25, 25, 25, 25, 25, 25, 25, 25];
+
+// Java class h: public static short[][] b (structure prefabs for terrain
+// columns). Each row is a flat list of (dx, dy, spriteId) triples; rows
+// 11-14 are the house/building prefabs used by the terrain column loop.
+const hPrefabs = [
+  [-34, -6, 143, -10, -6, 143, 25, -56, 139, 11, -49, 137, -9, -48, 136, 6, -52, 135, 15, -61, 134, -38, -58, 133, -2, -52, 136, -31, -51, 135, 7, -55, 134, -22, -52, 133, -1, -25, 109, -4, -27, 108, -22, -59, 106, -4, -57, 107, -5, -80, 132, -5, -69, 132, -3, -58, 132, -3, -47, 132, -3, -36, 132, 14, -132, 111, 14, -63, 107, 7, -171, 111, -1, -212, 111, -1, -14, 109, -6, -63, 119, -4, -14, 108, -17, -143, 123, -17, -101, 123, -22, -212, 112, -23, -63, 119, -29, -173, 112, -36, -63, 106, -36, -132, 112],
+  [-12, -6, 143, -33, -5, 143, -4, -35, 137, 15, -40, 136, -28, -38, 135, 1, -37, 134, -18, -38, 133, -2, -26, 132, -2, -37, 132, 14, -112, 111, 14, -45, 107, 0, -15, 109, 0, -168, 111, -3, -15, 108, -12, -46, 119, -12, -99, 119, -15, -90, 123, -21, -168, 112, -29, -45, 106, -33, -113, 112],
+  [-24, -6, 143, 1, -24, 139, -8, -26, 138, 0, -27, 134, -18, -29, 133, -2, -26, 132, -1, -15, 109, -3, -15, 108, -27, -136, 105],
+  [-22, -5, 143, 7, -20, 115, 6, -76, 113, 0, -97, 113, -1, -8, 118, -1, -16, 117, -7, -21, 116, -8, -52, 127, -15, -97, 110, -18, -20, 114, -20, -76, 110],
+  [-5, -5, 146, -14, -3, 144, 6, -17, 115, 0, -73, 113, -1, -8, 118, -1, -16, 117, -6, -18, 116, -14, -72, 110, -15, -18, 114],
+  [0, -1, 145, -8, -2, 144, 0, -9, 129, 0, -5, 129, -1, -10, 129, 1, -38, 130, 1, -12, 126, -1, -51, 130, -1, -5, 129, -5, -38, 131, -7, -51, 131, -8, -12, 125, -9, -39, 131],
+  [-3, -2, 145, 0, -8, 129, 0, -4, 129, -6, -33, 120],
+  [-3, -2, 145, -3, -5, 141, -4, -22, 140],
+  [-2, -3, 128, -3, -16, 121],
+  [-2, -11, 142, -2, -3, 128],
+  [-2, -3, 128, -2, -7, 122],
+  [79, -13, 240, 55, -20, 239, 45, -20, 238, 0, -10, 237, 31, -20, 236, 19, -13, 235],
+  [79, -13, 240, 67, -13, 235, 49, -13, 241, 57, -13, 240, 37, -13, 235, 18, -10, 237, 12, -13, 240, 0, -13, 235],
+  [35, -22, 243, 46, -22, 243, 140, -10, 237, 46, -15, 242, 66, -20, 238, 130, -13, 241, 122, -13, 241, 167, -13, 240, 155, -13, 235, 138, -13, 240, 110, -13, 235, 100, -13, 240, 0, -13, 235, 76, -20, 239, 36, -20, 238, 26, -20, 238, 12, -20, 236],
+  [95, -10, 237, 95, -13, 240, 111, -13, 235, 71, -20, 239, 36, -20, 239, 57, -20, 236, 137, -20, 238, 167, -13, 240, 145, -20, 239, 123, -20, 236, 26, -20, 238, 12, -20, 236, 0, -13, 235],
+  [-14, -17, -1, -13, -27, -1, -14, -33, -1, -1, -33, -1, -11, -38, -1, 0, -38, -1, 22, -27, -1, -27, -27, -1, -27, -17, -1, 22, -17, -1, 2, -17, -1, 2, -27, -1, -24, -27, -1, -24, -17, -1, 18, -30, -1, -21, -34, -1, 6, -6, -1, 9, -34, -1, 6, -16, -1, 6, -20, -1, 6, -11, -1, -15, -18, -1, -30, -30, -1, -15, -14, -1],
+  [-11, -23, -1, 0, -23, -1, -10, -18, -1, -13, -18, -1, -16, -21, -1, 10, -18, -1, 5, -7, -1, 5, -12, -1, 3, -7, -1, -8, -12, -1, -5, -12, -1, 3, -12, -1, 5, -21, -1],
+  [-5, -5, -1],
+  [-11, -56, 343, 5, -56, 344, 5, -77, 344, -11, -77, 343, 5, -84, 342, -15, -84, 341, -5, -14, 336, -5, -28, 338, -5, -56, 337, -5, -112, 339, -5, -70, 338, -5, -84, 337, -5, -42, 336],
+  [-11, -56, 343, 5, -56, 344, 5, -77, 344, -11, -77, 343, 5, -84, 342, -15, -84, 341, -5, -14, 336, -5, -28, 338, -5, -56, 337, -5, -70, 338, -5, -84, 337, -5, -42, 336],
+  [-3, -26, 340],
+  [0, -10, 345],
+  [-1, -1, 305, -79, -24, 314, 34, -48, 313, -41, -67, 311, -13, -71, 310, 12, -51, 309, -42, -44, 308, 31, -21, 307],
+  [-1, -1, 305, -72, -24, 314, 26, -35, 313, 36, -54, 312, -38, -67, 311, -12, -72, 310, 14, -46, 309, -34, -42, 308, 17, -19, 307, -60, -47, 306],
+  [-1, -1, 305, 36, -12, 307, -49, -57, 314, 23, -36, 313, 35, -52, 312, -62, -37, 311, 8, -40, 310, 19, -60, 309, -14, -46, 308, -41, -31, 306]
+];
 const hColorThresholds = [
   [1513234, 5592379, 9139504, 7753759, 5920308, 6049333, 6042932, 3808065],
   [3357474, 4209689, 4608065, 4144408, 4078614, 4275738, 4209433, 3490861],
@@ -40,12 +88,54 @@ const hColorThresholds = [
   [1119780, 7051759, 5461083, 6455993, 11711146, 5074088, 8351325, 3813974],
   [2504023, 12636653, 12817489, 15770183, 10531279, 13737876, 14109207, 9183513]
 ];
+console.log('[i.js] stamp=2026-08-29B');
+
+// ---- render-debug instrumentation ----
+// Toggle live from the console:  __WM_DEBUG_RENDER = false  silences all
+// [dbg-render] logs below without reloading. Default is ON.
+let _dbgCount = 0;
+const DBG_EVERY = 12; // keep (at most) 1 in DBG_EVERY frames of detail
+function dbgEnabled() {
+  const v = globalThis.__WM_DEBUG_RENDER;
+  return v === undefined ? true : !!v;
+}
+function dbgR(tag, ...args) {
+  if (!dbgEnabled()) return;
+  if (++_dbgCount % DBG_EVERY !== 0) return;
+  console.log('[dbg-render]', tag, ...args);
+}
+function _typeOf(v) {
+  if (v === null) return 'null';
+  if (Array.isArray(v)) return 'Array(' + v.length + ')';
+  const ctor = v && v.constructor;
+  if (ctor) {
+    const name = ctor.name;
+    if (name === 'Int8Array' || name === 'Uint8Array' || name === 'Int16Array' ||
+        name === 'Uint16Array' || name === 'Int32Array' || name === 'Uint32Array') {
+      return name + '(' + v.length + ')';
+    }
+  }
+  return typeof v;
+}
+function dbgOnce(tag, ...args) {
+  if (!dbgEnabled()) return;
+  if (!dbgOnce._seen) dbgOnce._seen = new Set();
+  if (dbgOnce._seen.has(tag)) return;
+  dbgOnce._seen.add(tag);
+  console.log('[dbg-render]', tag, ...args);
+}
+
 export class i extends Screen {
-  u = [];
-  v = [];
-  d = [];
-  e = [];
-  a = -1;
+  u = new Int16Array(130);
+  v = new Int8Array(130);
+  d = Array(130).fill(false);
+  e = Array(130).fill(false);
+  terrainCols = [11, 14, 12, 11, 13, 12];
+  terrainColW = [88, 176, 88, 88, 176, 88];
+  gfxDef = [282, 283, 284, 285, 286, 287];
+  gfxOn = [276, 277, 278, 279, 280, 281];
+  gfxOff = [270, 271, 272, 273, 274, 275];
+  aSeed = -1;
   M = 0;
 
   aTiles = [385, 386, 387];
@@ -315,15 +405,22 @@ export class i extends Screen {
 
   constructor() {
     super();
+    console.log("[i.js] constructor: initializing game state");
     this.resetGameState();
   }
 
   resetGameState() {
+    console.log("[i.js] resetGameState: resetting game state variables");
     this.u = new Int16Array(130);
     this.v = new Int8Array(130);
     this.d = Array(130).fill(false);
     this.e = Array(130).fill(false);
+    this.eArr = new Int16Array(130);
+    this.f = new Int32Array(2);
     this.aBool = false;
+    this.aCam = new Array(180).fill(null);
+    this.bCam = new Array(180).fill(null);
+    this.cPal = new Array(180).fill(null);
     this.M = 0;
     this.kArr = new Int32Array(16);
     this.boolB = Array(9).fill(false);
@@ -334,14 +431,52 @@ export class i extends Screen {
     this.randomC = Math.random;
     this.CBytes = new Int8Array(9);
     this.tShort = new Int32Array(9);
+    this.i = 0;
+    this.z = 0;
+    this.D = 0;
+    this.an = false;
+    this.m = -1;
+    this.aProgress = 0;
+    this.A = Array(256).fill(0);
+    this.C = 0;
+    this.F = 0;
+    k = k || new Int16Array(64);
+    G = 0;
+    v = false;
+    this.I = 0;
+    this.t = null;
+    this.x = null;
+    this.y = null;
+    this.b = Array(9).fill(null);
+    this.hero = { a() {}, d() {}, c() {}, e() {} };
+    this.h = 0;
+    this.d = 0;
+    this.e = 0;
+
+    this.sVal = 0;
+    this.rVal = 0;
+    this.pVal = 0;
+    this.qVal = 0;
+    this.oVal = 0;
+    this.nVal = 0;
     this.HVal = 76;
     this.H = 76;
     this.tableA = Array.from({ length: 9 }, () => []);
     this.arrD = new Int32Array(9);
     this.arrE = new Int32Array(9);
+    console.log('[dbg] resetGameState field dump:', {
+      u: _typeOf(this.u), v: _typeOf(this.v),
+      d: _typeOf(this.d), e: _typeOf(this.e), eArr: _typeOf(this.eArr),
+      f: _typeOf(this.f), kArr: _typeOf(this.kArr),
+      dValue: this.d, eValue: this.e,
+      mapW: this.mapW, mapH: this.mapH, tileData: !!this.tileData,
+      h: this.h, i: this.i, H: this.H
+    });
+    console.log('[i.js] resetGameState: game state reset');
   }
 
   paintScreen(g) {
+    console.log('[i.js] paintScreen: rendering frame');
     try {
       g.setClip(0, 0, 176, 208);
       g.setColor(0x000000);
@@ -362,16 +497,58 @@ export class i extends Screen {
   }
 
   update(dt) {
+    this._frameCount = (this._frameCount || 0) + 1;
+    if (this._frameCount % 60 === 0) {
+      console.log('[i.js] beat frame=' + this._frameCount + ' i=' + this.i + ' z=' + this.z + ' D=' + this.D + ' A=' + this.aProgress + ' C=' + this.C + ' oVal=' + this.oVal + ' pVal=' + this.pVal + ' qVal=' + this.qVal);
+    }
     try {
       i.eUpdate.call(this, dt);
-    } catch (_e) {}
+    } catch (_e) {
+      console.warn('[i.js] update/eUpdate:', _e.message, '\n' + (_e.stack || ''));
+    }
+    try {
+      i.aStep.call(this, dt);
+    } catch (_e) {
+      console.warn('[i.js] update/aStep:', _e.message, '\n' + (_e.stack || ''));
+    }
+    this._tickAcc = this._tickAcc || 0;
+    this._tickAcc += dt;
+    const tickRate = this.C === 0 ? 16 : 800;
+    while (this._tickAcc >= tickRate) {
+      this._tickAcc -= tickRate;
+      try {
+        i.jTick.call(this, 1);
+      } catch (_e) {
+        console.warn('[i.js] update/jTick:', _e.message, '\n' + (_e.stack || ''));
+      }
+    }
+    if (globalThis.__WM_DEBUG_AUTOMOVE) {
+      this.bCam[0] = true;
+      if (this._frameCount % 600 === 0) console.log('[dbg-auto] holding forward C=' + this.C + ' aProgress=' + this.aProgress + ' gateF=' + this.F + ' m=' + this.m);
+    }
+    try {
+      i.jStep.call(this);
+    } catch (_e) {
+      console.warn('[i.js] update/j:', _e.message, '\n' + (_e.stack || ''));
+    }
   }
 
   screenEntered() {
     console.log('[i.js] screenEntered: game is now active');
   }
 
+  aCheck() {
+    return this.i >= 6 && this.i <= 17;
+  }
+
+  aRandom(paramInt1, paramInt2, paramRandom) {
+    let max = paramInt2;
+    if (max - paramInt1 + 1 === 0) max++;
+    return ((Math.floor(Math.random() * 0x40000000)) % (max - paramInt1 + 1)) + paramInt1;
+  }
+
   loadTileData() {
+    console.log('[i.js] loadTileData: loading tile data');
     try {
       const data = cRes.getResource(63);
       if (!data) return;
@@ -417,47 +594,47 @@ export class i extends Screen {
     try { n.playSound(50, -1); } catch (_e) {}
   }
 
-  b(paramInt) {
-    let arr = this.b ?? [];
-    for (let i = 0; i < arr.length; i++) {
-      arr[i] = false;
+  keyPressed(paramInt) {
+    console.log('[dbg-key] keyPressed', paramInt, 'C=' + this.C, 'm=' + this.m, 'l=' + (this.l === null ? 'null' : typeof this.l));
+    for (let i = 0; i < 9; i++) {
+      this.bCam[i] = false;
     }
     switch (paramInt) {
       case 5:
-        this.d();
-        this.m?.a?.(20, this);
+        this.an = true;
+        mEngine.postEvent(20, this);
         return;
       case 3:
       case 14:
-        arr[2] = true;
+        this.bCam[2] = true;
         return;
       case 4:
       case 16:
-        arr[3] = true;
+        this.bCam[3] = true;
         return;
       case 1:
       case 12:
-        arr[0] = true;
+        this.bCam[0] = true;
         return;
       case 2:
       case 18:
-        arr[1] = true;
+        this.bCam[1] = true;
         return;
       case 7:
       case 15:
-        arr[4] = true;
+        this.bCam[4] = true;
         return;
       case 11:
-        arr[7] = true;
+        this.bCam[7] = true;
         return;
       case 17:
-        arr[5] = true;
+        this.bCam[5] = true;
         return;
       case 19:
-        arr[6] = true;
+        this.bCam[6] = true;
         return;
       case 13:
-        arr[8] = true;
+        this.bCam[8] = true;
         break;
     }
   }
@@ -467,13 +644,13 @@ export class i extends Screen {
     this.z = false;
     if (this.F !== 0) {
       if (this.E === 0 && this.u === 0) {
-        this.b(true);
+        this.bSub(true);
       } else if (this.u !== 0) {
         this.k();
         this.w();
         this.F = 0;
         this.u = 0;
-        this.b(false);
+        this.bSub(false);
       }
     }
 
@@ -487,7 +664,7 @@ export class i extends Screen {
           }
         }
         if (bool) {
-          this.b(true);
+          this.bSub(true);
         } else {
           this.x();
         }
@@ -501,16 +678,16 @@ export class i extends Screen {
         this.T += paramInt;
         if (this.T > 300) {
           this.T = false;
-          this.b(false);
+          this.bSub(false);
         }
       }
     }
 
     if (paramInt <= 0) paramInt = 1;
-    this.a += paramInt;
+    this.aSeed += paramInt;
     this.e(paramInt);
     this.aInt(paramInt);
-    this.j();
+    this.jStep();
     if (this.r !== null && this.l === null) {
       this.z[this.q] = 2;
       let arrayOfString = this.aValue(this.w[this.q], 1);
@@ -520,11 +697,11 @@ export class i extends Screen {
 
     if (!this.j && !this.g) {
       this.g = true;
-      this.b(false, null);
-      this.b(true, this.a);
-      this.t();
+      this.bStep(false, null);
+      this.bStep(true, this.a);
+      this.tInit();
     } else if (this.z !== null) {
-      this.b(true, this.a);
+      this.bStep(true, this.a);
     }
 
     this.aCall(true, this.a);
@@ -555,7 +732,7 @@ export class i extends Screen {
       }
     }
 
-    this.h.e();
+    this.hero.e();
     this.y(paramInt);
     if (this.C <= 20) {
       this.L += paramInt;
@@ -616,7 +793,7 @@ export class i extends Screen {
   }
 
   static aStep(paramInt) {
-    if (this.o !== 0 && this.D > 0 && this.D < 600) {
+    if (this.oVal !== 0 && this.D > 0 && this.D < 600) {
       this.y();
       this.q();
       return;
@@ -625,30 +802,30 @@ export class i extends Screen {
 
   static eUpdate(paramInt) {
     if (!this.aCheck()) {
-      if (this.r === -1) {
-        this.s += paramInt;
-        if (this.s >= 41) {
+      if (this.rVal === -1) {
+        this.sVal += paramInt;
+        if (this.sVal >= 41) {
           if (this.aRandom(0, 1000, this.a) <= 50) {
-            this.r = false;
-            this.n = this.aRandom(26, 31, this.a);
-            if (this.aRandom(0, 100, this.a) <= 50) this.n = -this.n;
-            this.o = this.aRandom(0, 5, this.a) + 3;
-            this.p = this.aRandom(0, 45056, this.a);
-            this.q = this.aRandom(0, this.H << 8 >> 1, this.a);
+            this.rVal = false;
+            this.nVal = this.aRandom(26, 31, this.a);
+            if (this.aRandom(0, 100, this.a) <= 50) this.nVal = -this.nVal;
+            this.oVal = this.aRandom(0, 5, this.a) + 3;
+            this.pVal = this.aRandom(0, 45056, this.a);
+            this.qVal = this.aRandom(0, this.H << 8 >> 1, this.a);
           }
-          this.s = false;
+          this.sVal = false;
           return;
         }
       } else {
-        this.r += paramInt;
-        if (this.r >= 41) {
-          this.r = -1;
+        this.rVal += paramInt;
+        if (this.rVal >= 41) {
+          this.rVal = -1;
           return;
         }
-        this.p += this.n * paramInt;
-        this.q += this.o * paramInt;
-        if (this.p < 0 || this.p > 1000 || this.q < 0 || this.q > this.H << 8) {
-          this.r = -1;
+        this.pVal += this.nVal * paramInt;
+        this.qVal += this.oVal * paramInt;
+        if (this.pVal < 0 || this.pVal > 1000 || this.qVal < 0 || this.qVal > this.H << 8) {
+          this.rVal = -1;
         }
       }
     }
@@ -699,24 +876,25 @@ export class i extends Screen {
     }
   }
   
-  static j() {
+  static jStep() {
     if (this.F !== 0 || this.t !== null || this.C <= 0 || this.y !== null || this.x !== null || this.m === 5 || (this.m === 6 && this.l === null) || this.m === 7 || this.m === 8) {
+      dbgR('jStep gate', { F: this.F, t: this.t, C: this.C, y: this.y, x: this.x, m: this.m, l: this.l, B: this.B, aProgress: this.aProgress, z: this.z });
       return;
     }
     if (this.D <= 0) {
       if (!this.j) {
-        let b1;
+        let b1 = this.h;
         let bool = this.h;
         let b2 = this.d;
         let b3 = this.e;
-        if (this.b[2] !== null) {
+        if (this.bCam[2] !== null) {
           b1 = bool - 1;
-          this.b[2] = false;
-        } else if (this.b[3] !== null) {
+          this.bCam[2] = false;
+        } else if (this.bCam[3] !== null) {
           b1 = b1 + 1;
-          this.b[3] = false;
-        } else if (this.b[0] !== null) {
-          this.b[0] = false;
+          this.bCam[3] = false;
+        } else if (this.bCam[0] !== null) {
+          this.bCam[0] = false;
           switch (b1) {
             case 0:
               b3 -= 1;
@@ -747,19 +925,19 @@ export class i extends Screen {
               b3 -= 1;
               break;
           }
-        } else if (this.b[1] !== null) {
+        } else if (this.bCam[1] !== null) {
           b1 = b1 + 4;
-          this.b[1] = false;
+          this.bCam[1] = false;
         }
         if (b1 < 0) {
           b1 += 8;
         } else if (b1 > 7) {
           b1 -= 8;
         }
-        if (b2 === 27 && b3 === 39 && this.a !== null && this.b !== null && this.C !== 0) {
+        if (b2 === 27 && b3 === 39 && this.aCam !== null && this.bCam !== null && this.C !== 0) {
           this.x = true;
           this.v();
-          this.h.a();
+          this.hero.a();
           this.r = 7;
         } else if (b3 < 0 || b3 >= this.c) {
           if (this.C !== 0) {
@@ -769,9 +947,10 @@ export class i extends Screen {
           }
         }
         if ((b2 !== this.d || b3 !== this.e) && this.bCheck(b2, b3)) {
-          this.h.d();
+          dbgR('jStep move', { from: [this.d, this.e], to: [b2, b3], h: this.h, d: this.D });
+          this.hero.d();
           if (this.A !== 0 && this.aTile(b2, b3, 0, 7) !== 7) {
-            for (let i = 0; i < this.a.g; i++) {
+            for (let i = 0; i < this.aCam.g; i++) {
               this.p[i] = 0;
               this.q[i] = 0;
               this.G[i] = 0;
@@ -787,7 +966,7 @@ export class i extends Screen {
               this.g = this.e;
               this.d = b2;
               this.e = b3;
-              this.u();
+              this.u(1);
               this.s[this.S] = this.d;
               this.t[this.S] = this.e;
               this.g = false;
@@ -805,7 +984,7 @@ export class i extends Screen {
             this.g = this.e;
             this.d = b2;
             this.e = b3;
-            this.u();
+            this.u(1);
             if (this.J === 0 && this.m === -1) {
               this.J = 1;
               this.v = true;
@@ -873,9 +1052,9 @@ export class i extends Screen {
             return;
           }
         } else if (b1 !== this.h) {
-          this.h.d();
+          this.hero.d();
           if (this.A !== 0 && this.aTile(b2, b3, 0, 7) !== 7) {
-            for (let i = 0; i < this.a.g; i++) {
+            for (let i = 0; i < this.aCam.g; i++) {
               this.p[i] = 0;
               this.q[i] = 0;
               this.G[i] = 0;
@@ -883,15 +1062,15 @@ export class i extends Screen {
             }
             this.X = 0;
           }
-          this.z = true;
+          this.z = 1;
           this.r = -1;
           this.h = b1;
           this.bPaint(null);
           return;
         }
       }
-      if (this.b[4] !== null) {
-        this.b[4] = false;
+      if (this.bCam[4] !== null) {
+        this.bCam[4] = false;
         let b = this.A[this.o * 2 + 1];
         let j = this.o * 2;
         let k = this.aTile(this.d, this.e, 13, 57344);
@@ -909,34 +1088,34 @@ export class i extends Screen {
           }
         }
       }
-      if (this.b[8] !== null) {
-        this.b[8] = false;
+      if (this.bCam[8] !== null) {
+        this.bCam[8] = false;
         this.h = !this.h;
         return;
       }
-      if (this.b[7] !== null) {
-        this.b[7] = false;
+      if (this.bCam[7] !== null) {
+        this.bCam[7] = false;
         if (this.G !== null && !this.h) {
           this.v = false;
           this.i = true;
-          this.h.c();
+          this.hero.c();
           return;
         }
       } else {
-        if (this.b[5] !== null) {
-          this.b[5] = false;
+        if (this.bCam[5] !== null) {
+          this.bCam[5] = false;
           this.hMove(-1);
           return;
         }
-        if (this.b[6] !== null) {
-          this.b[6] = false;
+        if (this.bCam[6] !== null) {
+          this.bCam[6] = false;
           this.hMove(1);
           return;
         }
       }
     } else {
-      for (let i = 0; i < this.b.length; i++) {
-        this.b[i] = false;
+      for (let i = 0; i < this.bCam.length; i++) {
+        this.bCam[i] = false;
       }
     }
   }
@@ -1123,7 +1302,7 @@ export class i extends Screen {
     this.sAction();
     for (b = 0; b < this.h.length; b++) {
       if (this.h[b] !== 4 && this.h[b] !== 5) {
-        this.a[b] = true;
+        this.aCam[b] = true;
         this.rAction(b);
       }
     }
@@ -1162,6 +1341,32 @@ export class i extends Screen {
   static gainEnergy(paramInt) {
     this.C += paramInt;
     if (this.C > 100) this.C = 100;
+  }
+
+  static aTile(paramByte1, paramByte2, paramInt1, paramInt2) {
+    if (!this.tileData) return 0;
+    const x = paramByte1;
+    const y = paramByte2;
+    if (x < 0 || y < 0 || y >= this.mapH || x >= this.mapW) return 0;
+    return this.tileData[y * this.mapW + x] & paramInt2;
+  }
+
+  static bPaint() {}
+
+  static bSub(paramBoolean) {}
+
+  static bStep(paramBoolean, paramGraphics) {
+    this.bPaint(paramGraphics);
+  }
+
+  static bSet(paramInt, paramByte1, paramByte2) {}
+
+  static bCk(paramByte1, paramByte2) {
+    return true;
+  }
+
+  static bTile(paramByte1, paramByte2, paramInt1, paramInt2) {
+    return false;
   }
 
   static aTileCheck(paramByte1, paramByte2, paramInt1, paramInt2) {
@@ -1239,7 +1444,7 @@ export class i extends Screen {
     }
     if (this.c === null) {
       for (let b = 0; b < this.h.length; b++) {
-        if (this.i[b] === this.d && this.j[b] === this.e && this.a[b] !== null) {
+        if (this.i[b] === this.d && this.j[b] === this.e && this.aCam[b] !== null) {
           if (this.h[b] === 4 && !this.a()) break;
           this.B = this.h[b];
           j = b;
@@ -1281,10 +1486,10 @@ export class i extends Screen {
               this.y = true;
             } else if (this.I === 0) {
               this.a(120, null, 32);
-              this.t(217);
+              this.tMsg();
             } else if (this.H === 0) {
               this.a(121, null, 32);
-              this.t(217);
+              this.tMsg();
             }
           } else if (this.r[b] === 7) {
             if (this.C !== 0 && this.u[b] !== 2) {
@@ -1303,7 +1508,7 @@ export class i extends Screen {
             if (!this.Q) {
               this.a(126, null, 32);
               this.Q = true;
-              if (this.C === 0) this.t(214);
+              if (this.C === 0) this.tMsg();
             }
             if (!this.aj && this.h.e !== 0) {
               this.a(198, null, -1);
@@ -1417,7 +1622,7 @@ export class i extends Screen {
     this.D = 1200;
     let b;
     for (b = 0; b < this.c.length; b++) {
-      this.c[b] = false;
+      this.cPal[b] = false;
     }
     for (b = 0; b < paramInt1; b++) {
       if (this.c()) return;
@@ -1425,14 +1630,14 @@ export class i extends Screen {
       if ((j = this.a(0, this.k + this.l - 1, this.a)) >= this.k) {
         if (this.q[j - this.k] < this.h[8]) {
           this.q[j - this.k] = (this.q[j - this.k] + 1);
-          this.c[j] = true;
+          this.cPal[j] = true;
           this.a(j, 0, this.q[j - this.k]);
         } else {
           b--;
         }
       } else if (this.p[j] < this.h[this.B]) {
         this.p[j] = (this.p[j] + 1);
-        this.c[j] = true;
+        this.cPal[j] = true;
         this.a(j, 0, this.p[j]);
       } else {
         b--;
@@ -1471,7 +1676,8 @@ export class i extends Screen {
     return false;
   }
   
-  static p() {
+  static pStep() {
+    if (typeof this.v !== 'function') return;
     if (this.a()) {
       this.v(59);
       return;
@@ -1480,7 +1686,7 @@ export class i extends Screen {
   }
   
   static q() {
-    if (this.m !== 6) this.p();
+    if (this.m !== 6) this.pStep();
     if (this.j !== -1) {
       let arrayOfString;
       if ((arrayOfString = this.a(this.B, this.k, this.l)) !== null) {
@@ -1499,7 +1705,7 @@ export class i extends Screen {
       this.a(11, 1);
       this.r = 2;
       this.G = false;
-      this.t(213);
+      this.tMsg();
       this.v = false;
       this.m = true;
     }
@@ -1507,24 +1713,24 @@ export class i extends Screen {
     this.o = 0;
     this.j = false;
     this.l = false;
-    if (this.j !== -1) this.a[this.j] = false;
+    if (this.j !== -1) this.aCam[this.j] = false;
     if (this.B === 5 && this.j !== -1) {
       for (let b = 0; b < this.h.length; b++) {
         if (this.h[b] === 4 && this.o[b] === this.o[this.j]) {
           this.m[b] = (this.m[b] - 1);
-          if (this.m[b]) this.a[b] = false;
+          if (this.m[b]) this.aCam[b] = false;
           break;
         }
       }
     } else if (this.B === 4) {
       for (let b = 0; b < this.h.length; b++) {
-        if (this.h[b] === 5 && this.o[b] === this.o[this.j]) this.a[b] = false;
+        if (this.h[b] === 5 && this.o[b] === this.o[this.j]) this.aCam[b] = false;
       }
     }
     if (this.E === 0) {
       let bool = true;
       for (let b = 0; b < this.h.length; b++) {
-        if (this.h[b] === 4 && this.a[b] === true) bool = false;
+        if (this.h[b] === 4 && this.aCam[b] === true) bool = false;
       }
       if (bool) {
         this.E = 1;
@@ -1641,17 +1847,19 @@ export class i extends Screen {
     this.C -= j;
     if (this.C <= 0) {
       this.C = 0;
-      this.a = -1;
+      this.aSeed = -1;
       if (paramInt1 < 100) return;
       this.a(187, null, -1);
     }
   }
   
-  static j(paramInt) {
+  static jTick(paramInt) {
     this.z += paramInt;
-    this.A = (this.z - 12) / 24;
+    this.aProgress = (this.z - 12) / 24;
+    dbgR('jTick', { aProgress: this.aProgress, i: this.i, C: this.C, Aproto: this.aProgress >= 30 });
     let bool = false;
-    if (this.A >= 30 && this.h.a !== null && this.I === 0 && this.C === 0) {
+    if (this.aProgress >= 30 && this.I === 0 && this.C === 0) {
+      console.log('[dbg-intro] INTRO TRIGGER aProgress=' + this.aProgress);
       this.c = false;
       this.e = 0;
       this.G = false;
@@ -1663,13 +1871,13 @@ export class i extends Screen {
       this.A[0] = 25;
       this.p = true;
       for (b = 0; b < this.h.length; b++) {
-        if (this.h[b] === 2) this.a[b] = false;
+        if (this.h[b] === 2) this.aCam[b] = false;
       }
       this.l = 10;
       let arrayOfString = ["" + this.l];
       b = false;
       this.i = false;
-      this.t(221);
+      this.tMsg();
       this.a(174, arrayOfString, -1);
       this.r = 5;
     }
@@ -1678,7 +1886,7 @@ export class i extends Screen {
       if (this.i > 23) this.i = (this.i - 24);
     }
     if ((this.i === 6 || this.i === 18) && this.C !== 0) this.a(179, null, -1);
-    this.p();
+    this.pStep();
   }
   
   static r() {
@@ -1698,7 +1906,7 @@ export class i extends Screen {
             this.o(b);
             this.l(b);
             this.m(b);
-            this.p(b);
+            this.pAdd(b);
             this.q(b);
           }
         }
@@ -1708,29 +1916,29 @@ export class i extends Screen {
   }
   
   static k(paramInt) {
-    if (this.a[paramInt] !== null) {
+    if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       if (this.a()) {
         if (this.k !== null) {
-          this.b(paramInt, this.f, this.g);
+          this.bSet(paramInt, this.f, this.g);
           return;
         }
         this.s(paramInt);
         return;
       }
       if (this.a(paramInt, 1)) {
-        this.b(paramInt, this.f[0], this.f[1]);
+        this.bSet(paramInt, this.f[0], this.f[1]);
         this.a(this.i[paramInt], this.j[paramInt], 1, 1);
         return;
       }
     } else if (this.i === 6) {
-      this.a[paramInt] = true;
+      this.aCam[paramInt] = true;
       this.r(paramInt);
     }
   }
   
   static l(paramInt) {
-    if (this.a[paramInt] !== null) {
+    if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       if (this.a()) {
         if (this.a(paramInt, 5)) {
@@ -1741,7 +1949,7 @@ export class i extends Screen {
           return;
         }
         if (this.k !== null) {
-          this.b(paramInt, this.f, this.g);
+          this.bSet(paramInt, this.f, this.g);
           return;
         }
         this.s(paramInt);
@@ -1750,18 +1958,18 @@ export class i extends Screen {
   }
   
   static m(paramInt) {
-    if (this.a[paramInt] !== null) {
+    if (this.aCam[paramInt] !== null) {
       if (!this.a()) {
         if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
         if (this.k !== null) {
-          this.b(paramInt, this.f, this.g);
+          this.bSet(paramInt, this.f, this.g);
         } else {
           this.s(paramInt);
         }
         if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
         if (this.a(0, 100, this.a) <= 50) {
           if (this.k !== null) {
-            this.b(paramInt, this.f, this.g);
+            this.bSet(paramInt, this.f, this.g);
             return;
           }
           this.s(paramInt);
@@ -1797,10 +2005,10 @@ export class i extends Screen {
   }
   
   static n(paramInt) {
-    if (this.a[paramInt] !== null) {
+    if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       if (this.a(this.i[paramInt], this.j[paramInt], this.f, this.g)) {
-        this.b(paramInt, this.f, this.g);
+        this.bSet(paramInt, this.f, this.g);
       } else if (this.a() || this.h[paramInt] === 2) {
         this.s(paramInt);
       }
@@ -1809,28 +2017,28 @@ export class i extends Screen {
         return;
       }
     } else if (this.i === 6 && (this.C === 0 || this.h[paramInt] === true)) {
-      this.a[paramInt] = true;
+      this.aCam[paramInt] = true;
       this.r(paramInt);
     }
   }
   
   static o(paramInt) {
-    if (this.a[paramInt] !== null) {
+    if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       if (!this.a() || this.a(0, 100, this.a) <= 50) {
         this.s(paramInt);
         return;
       }
     } else if (this.i === 6) {
-      this.a[paramInt] = true;
+      this.aCam[paramInt] = true;
       this.r(paramInt);
     }
   }
   
-  static p(paramInt) {
-    if (this.a[paramInt] !== null) {
+  static pAdd(paramInt) {
+    if (this.aCam[paramInt] !== null) {
       if (!this.a()) {
-        this.a[paramInt] = false;
+        this.aCam[paramInt] = false;
         return;
       }
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
@@ -1839,13 +2047,13 @@ export class i extends Screen {
         return;
       }
     } else if (this.i === 6) {
-      this.a[paramInt] = true;
+      this.aCam[paramInt] = true;
       this.r(paramInt);
     }
   }
   
   static q(paramInt) {
-    if (this.a[paramInt] !== null) {
+    if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       let j;
       if ((j = this.a(this.i[paramInt], this.j[paramInt], 0, 7)) === 3 || j === 4 || j === 5) {
@@ -1856,7 +2064,7 @@ export class i extends Screen {
       return;
     }
     if (this.i === 6) {
-      this.a[paramInt] = true;
+      this.aCam[paramInt] = true;
       this.r(paramInt);
     }
   }
@@ -1945,7 +2153,7 @@ export class i extends Screen {
   }
   
   static c(paramByte1, paramByte2, paramInt) {
-    if (!this.b(paramByte1, paramByte2)) return false;
+    if (!this.bCk(paramByte1, paramByte2)) return false;
     if (this.a(paramByte1, paramByte2, 0, 7) === 7) return false;
     if (this.a(paramByte1, paramByte2, 0, 7) === 6) return false;
     if (this.o[paramInt] !== this.a(paramByte1, paramByte2, 9, 7680)) return false;
@@ -2836,6 +3044,7 @@ export class i extends Screen {
         let j = b * 35;
         let k = 35 + b1;
         let m = b + 4;
+        dbgR('entities col A', { pass: paramInt, b, tileX: b2, tileY: b3, j, k, m });
         if (paramInt === 1) {
           i._drawEntityClip.call(this, b2, b3, j, 76, k, 7, m, paramGraphics);
         } else if (paramInt === 0) {
@@ -2859,6 +3068,7 @@ export class i extends Screen {
         let j = (b - 5) * 58;
         let k = 58 + b1;
         let m = b - 5 + 1;
+        dbgR('entities col B', { pass: paramInt, b, tileX: b2, tileY: b3, j, k, m });
         if (paramInt === 1) {
           i._drawEntityClip.call(this, b2, b3, j, 83, k, 20, m, paramGraphics);
         } else if (paramInt === 0) {
@@ -2908,49 +3118,51 @@ export class i extends Screen {
     } else {
       b1 = 0;
     }
+    dbgR('terrain kind', { i: this.i, b1, h: this.h, H: this.H, d: this.d, e: this.e, mapW: this.mapW, mapH: this.mapH });
     let k = 0;
     let m = 0;
     let n = 0;
     let i1 = 0;
     let i2;
     let i3 = (i2 = -128 + this.h * 32) + 64;
+    dbgR('terrain range', { h: this.h, colStart: i2, colEnd: i3, k, m, n, i1 });
     try {
     if (b1 && b1 !== 1) {
       if (i3 > 128) {
-        k = 1000 * (this.a[(b1 - 2) * 2] + 128 + 32) / 64 * 176 / 1000;
-        m = 1000 * this.a[(b1 - 2) * 2 + 1] / 128 * this.H / 1000;
-        n = 1000 * (this.b[(b1 - 2) * 2] + 128 + 32) / 64 * 176 / 1000;
-        i1 = 1000 * this.b[(b1 - 2) * 2 + 1] / 128 * this.H / 1000;
+        k = 1000 * (this.intArrA[(b1 - 2) * 2] + 128 + 32) / 64 * 176 / 1000;
+        m = 1000 * this.intArrA[(b1 - 2) * 2 + 1] / 128 * this.H / 1000;
+        n = 1000 * (this.intArrB[(b1 - 2) * 2] + 128 + 32) / 64 * 176 / 1000;
+        i1 = 1000 * this.intArrB[(b1 - 2) * 2 + 1] / 128 * this.H / 1000;
       } else {
-        k = 1000 * (this.a[(b1 - 2) * 2] - i2) / 64 * 176 / 1000;
-        m = 1000 * this.a[(b1 - 2) * 2 + 1] / 128 * this.H / 1000;
-        n = 1000 * (this.b[(b1 - 2) * 2] - i2) / 64 * 176 / 1000;
-        i1 = 1000 * this.b[(b1 - 2) * 2 + 1] / 128 * this.H / 1000;
+        k = 1000 * (this.intArrA[(b1 - 2) * 2] - i2) / 64 * 176 / 1000;
+        m = 1000 * this.intArrA[(b1 - 2) * 2 + 1] / 128 * this.H / 1000;
+        n = 1000 * (this.intArrB[(b1 - 2) * 2] - i2) / 64 * 176 / 1000;
+        i1 = 1000 * this.intArrB[(b1 - 2) * 2 + 1] / 128 * this.H / 1000;
       }
       this.K = i1 + 11;
     }
     } catch(_e) { console.warn('[i] terrain compass:', _e.message); }
     try {
-    if (this.C !== 0 && !i._isDaytime.call(this)) {
-      i6 = 1441792;
-    } else if (i._getTerrainColor.call(this, this.d, this.e, 6) && b1 === 0) {
-      i6 = 5632;
-    } else if (i._getTerrainColor.call(this, this.d, this.e, 5) && b1 === 0) {
+    if (i._isDaytime.call(this)) {
+      i6 = (b1 === 1) ? 7842542 : 13314141;
+    } else if (b1 >= 2 && b1 <= 7) {
+      i6 = 13314141;
+    } else {
       i6 = 1441792;
     }
     } catch(_e) { console.warn('[i] terrain color:', _e.message); }
     try {
-    i._drawTileGradient.call(this, j, 0, j, false, i6, 0, 0, 0, j, 176, 0, 176, j, paramGraphics, 0, false);
+    i._drawTileGradient.call(this, j, 0, j, i6, 0, 0, 0, j, 176, 0, 176, j, j, paramGraphics, 0, false);
     } catch(_e) { console.warn('[i] gradient1:', _e.message); }
     let i5;
     try {
-    if (this.C !== 0 && !i._isDaytime.call(this)) {
-      i4 = 1441792;
-      i5 = 6684672;
-    } else if (i._getTerrainColor.call(this, this.d, this.e, 6) && b1 === 0) {
-      i4 = 5632;
-      i5 = 26112;
-    } else if (i._getTerrainColor.call(this, this.d, this.e, 5) && b1 === 0) {
+    if (i._isDaytime.call(this)) {
+      i4 = 7842542;
+      i5 = 2669895;
+    } else if (b1 >= 2 && b1 <= 7) {
+      i4 = 13314141;
+      i5 = 7354371;
+    } else {
       i4 = 1441792;
       i5 = 6684672;
     }
@@ -2960,12 +3172,12 @@ export class i extends Screen {
     } catch(_e) { console.warn('[i] gradient2:', _e.message); }
     try {
     if (!i._isDaytime.call(this))
-      for (i4 = 0; i4 < this.b.length; i4 += 2) {
-        paramGraphics.setColor(this.c[this.c[i4 >> 1] - 1]);
-        if (this.b[i4] >= i2 && this.b[i4] <= i3) {
-          paramGraphics.fillRect(1000 * (this.b[i4] - i2) / 64 * 176 / 1000, 1000 * this.b[i4 + 1] / 128 * this.H / 1000, 1, 1);
-        } else if (i3 > 128 && this.b[i4] <= -96) {
-          paramGraphics.fillRect(1000 * (this.b[i4] + 128 + 32) / 64 * 176 / 1000, 1000 * this.b[i4 + 1] / 128 * this.H / 1000, 1, 1);
+      for (i4 = 0; i4 < this.byteArrB.length; i4 += 2) {
+        paramGraphics.setColor(this.intArrC[this.byteArrC[i4 >> 1] - 1]);
+        if (this.byteArrB[i4] >= i2 && this.byteArrB[i4] <= i3) {
+          paramGraphics.fillRect(1000 * (this.byteArrB[i4] - i2) / 64 * 176 / 1000, 1000 * this.byteArrB[i4 + 1] / 128 * this.H / 1000, 1, 1);
+        } else if (i3 > 128 && this.byteArrB[i4] <= -96) {
+          paramGraphics.fillRect(1000 * (this.byteArrB[i4] + 128 + 32) / 64 * 176 / 1000, 1000 * this.byteArrB[i4 + 1] / 128 * this.H / 1000, 1, 1);
         }
       }
     } catch(_e) {}
@@ -3028,48 +3240,55 @@ export class i extends Screen {
       }
     }
     let i7;
-    for (i7 = 0; i7 < this.e.length; i7 += 2) {
-      if ((i5 = this.e[i7 + 1] / 21) < 0) {
+    try {
+    let _eVis = 0;
+    let _eFirst = null;
+    for (i7 = 0; i7 < this.eArr.length; i7 += 2) {
+      if ((i5 = this.eArr[i7 + 1] / 21) < 0) {
         i5 = 0;
       } else if (i5 > 5) {
         i5 = 5;
       }
-      if (this.e[i7] >= i2 - 30 && this.e[i7] <= i3 + 30) {
+      if (this.eArr[i7] >= i2 - 30 && this.eArr[i7] <= i3 + 30) {
+        if (!_eVis++) _eFirst = [i7, this.eArr[i7], this.eArr[i7 + 1]];
         if (b1 === 0 || this.i === 19) {
-          cRes.drawSprite(this.l[i5], 1000 * (this.e[i7] - i2) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
+          cRes.drawSprite(this.gfxDef[i5], 1000 * (this.eArr[i7] - i2) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         } else if (this.f[i7 >> 1] === 0) {
-          cRes.drawSprite(this.m[i5], 1000 * (this.e[i7] - i2) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
+          cRes.drawSprite(this.gfxOn[i5], 1000 * (this.eArr[i7] - i2) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         } else {
-          cRes.drawSprite(this.k[i5], 1000 * (this.e[i7] - i2) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
+          cRes.drawSprite(this.gfxOff[i5], 1000 * (this.eArr[i7] - i2) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         }
-      } else if (i3 > 128 && this.e[i7] <= -66) {
+      } else if (i3 > 128 && this.eArr[i7] <= -66) {
+        if (!_eVis++) _eFirst = [i7, this.eArr[i7], this.eArr[i7 + 1]];
         if (b1 === 0 || this.i === 19) {
-          cRes.drawSprite(this.l[i5], 1000 * (this.e[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
+          cRes.drawSprite(this.gfxDef[i5], 1000 * (this.eArr[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         } else if (this.f[i7 >> 1] === 0) {
-          cRes.drawSprite(this.m[i5], 1000 * (this.e[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
+          cRes.drawSprite(this.gfxOn[i5], 1000 * (this.eArr[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         } else {
-          cRes.drawSprite(this.k[i5], 1000 * (this.e[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.e[i7 + 1] / 128 * this.H / 1000, paramGraphics);
+          cRes.drawSprite(this.gfxOff[i5], 1000 * (this.eArr[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         }
       }
     }
+    } catch(_e) {}
+    if (_eVis) dbgR('terrain eArr in view', { visible: _eVis, first: _eFirst, b1, i2, i3, H: this.H, gfxDef: this.gfxDef, gfxOn: this.gfxOn, gfxOff: this.gfxOff });
     try {
     i7 = (i5 = this.h * 88) + 176;
     let i8 = 0;
     let b2;
-    for (b2 = 0; b2 < this.i.length; b2++) {
-      if (i8 + this.j[b2] >= i7)
-        this.a(i8 - i7, this.H, this.i[b2], paramGraphics);
-      if ((i8 += this.j[b2]) > i7)
+    for (b2 = 0; b2 < this.terrainCols.length; b2++) {
+      if (i8 + this.terrainColW[b2] >= i7)
+        this.drawHouseLayer(i8 - i7, this.H, this.terrainCols[b2], paramGraphics);
+      if ((i8 += this.terrainColW[b2]) > i7)
         return;
     }
     if (i8 < 704)
       while (i8 < 704 && i8 <= i7) {
-        this.a(i8 - i7, this.H, this.i[this.i.length - 1], paramGraphics);
-        i8 += this.j[this.i.length - 1];
+        this.drawHouseLayer(i8 - i7, this.H, this.terrainCols[this.terrainCols.length - 1], paramGraphics);
+        i8 += this.terrainColW[this.terrainCols.length - 1];
       }
     for (b2 = 0; b2 < 2; b2++) {
-      this.a(i8 - i7, this.H, this.i[b2], paramGraphics);
-      if ((i8 += this.j[b2]) > i7)
+      this.drawHouseLayer(i8 - i7, this.H, this.terrainCols[b2], paramGraphics);
+      if ((i8 += this.terrainColW[b2]) > i7)
         return;
     }
     } catch(_e) {}
@@ -3088,6 +3307,7 @@ export class i extends Screen {
     } else {
       bool2 = false;
     }
+    dbgR('entityClip', { tileX: paramByte1, tileY: paramByte2, x: paramInt1, y: paramInt2, w: paramInt3, h: paramInt4, kind: paramInt5, inBounds: (paramByte1 >= 0 && paramByte1 < this.b && paramByte2 >= 0 && paramByte2 < this.c), tileBits: bool2, H: this.H, J: this.J, bdW: this.b, bdH: this.c });
     if (bool2 === 7) {
       b1 = 1;
       if (paramInt2 < this.H + this.J && paramInt2 + paramInt4 > this.H + this.J)
@@ -3247,12 +3467,42 @@ export class i extends Screen {
     return (j === -1 || k === -1) ? false : (!(paramInt1 < j || paramInt1 > k));
   }
   
+  static _waterVariantAt(paramInt1, paramInt2) {
+    // Java i.java:7502/7506 — variant 0..3 of the water shore at (x, y),
+    // from which side the water tile neighbours are, rotated by heading h.
+    const h = this.h & 3;
+    const isWater = (sx, sy) => i.aTile.call(this, paramInt1 + sx, paramInt2 + sy, 0, 7) === 7;
+    let up, right, down, left;
+    switch (h) {
+      case 0:
+        up = isWater(0, -1); right = isWater(1, 0); down = isWater(0, 1); left = isWater(-1, 0);
+        break;
+      case 1:
+        up = isWater(0, 1); right = isWater(-1, 0); down = isWater(0, -1); left = isWater(1, 0);
+        break;
+      case 2:
+        up = isWater(-1, 0); right = isWater(0, -1); down = isWater(1, 0); left = isWater(0, 1);
+        break;
+      case 3:
+        up = isWater(1, 0); right = isWater(0, 1); down = isWater(-1, 0); left = isWater(0, -1);
+        break;
+    }
+    return left ? (right ? 3 : 2) : (right ? 1 : (up ? 0 : (down ? 0 : 0)));
+  }
+
   static _drawTerrainColumn(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramGraphics) {
     try { i._drawTerrainColumnInner.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramGraphics); } catch(_e) { console.warn('[i] _drawTerrainColumn:', _e.message); }
   }
 
   static _drawTerrainColumnInner(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramGraphics) {
     if (typeof paramInt1 !== 'number' || typeof paramInt2 !== 'number') return;
+    dbgR('terrainCol in', { colX: paramInt1, colY: paramInt2, x0: paramInt3, y0: paramInt4, w: paramInt5, h: paramInt6, band: paramInt7, heading: this.h, H: this.H });
+    let rState = ((paramInt1 + 91) * 374761393 + (paramInt2 + 43) * 668265263 + (paramInt3 + 17) * 2246822519 + paramInt7 * 3266489917) >>> 0;
+    if (rState === 0) rState = 1;
+    const rr = (lo, hi) => {
+      rState = (rState * 48271 + 1) >>> 0;
+      return lo + (rState % (hi - lo + 1));
+    };
     let j = paramInt3;
     let k = paramInt4;
     let m = (169 - this.H) / 5;
@@ -3260,7 +3510,7 @@ export class i extends Screen {
     let i1 = 0;
     let i2 = 0;
     let i3;
-    if ((i3 = i._getTerrainColor.call(this, paramInt1, paramInt2, 0, 7)) === -1)
+    if ((i3 = i.aTile.call(this, paramInt1, paramInt2, 0, 7)) === -1)
       i3 = 0; 
     let i4 = 0;
     let i5 = 0;
@@ -3270,7 +3520,7 @@ export class i extends Screen {
     let i9 = 0;
     let i10 = 0;
     if (i3 === 7) {
-      i4 = i._getTerrainColor.call(this, paramInt1, paramInt2);
+      i4 = i._waterVariantAt.call(this, paramInt1, paramInt2);
       if (!this.h || this.h === 4 || this.h === 2 || this.h === 6) {
         i7 = paramInt3 + ((hDayBounds[paramInt7][i4 * 4 + 1] * 10 << 8) / 1000 * paramInt5 >> 8);
         i8 = paramInt3 + ((hDayBounds[paramInt7][i4 * 4 + 3] * 10 << 8) / 1000 * paramInt5 >> 8);
@@ -3281,7 +3531,8 @@ export class i extends Screen {
         i8 = paramInt3 + ((hNightBounds[paramInt7][i4 * 4 + 3] * 10 << 8) / 1000 * paramInt5 >> 8);
         i5 = paramInt3 + ((hNightBounds[paramInt7][i4 * 4] * 10 << 8) / 1000 * paramInt5 >> 8);
         i6 = paramInt3 + ((hNightBounds[paramInt7][i4 * 4 + 2] * 10 << 8) / 1000 * paramInt5 >> 8);
-      } 
+      }
+      dbgR('terrainCol water', { i4, i5, i6, i7, i8, heading: this.h, band: paramInt7 });
     } 
     while (true) {
       let b;
@@ -3314,21 +3565,22 @@ export class i extends Screen {
         let b1;
         if (!i2) {
           let i14;
-          if ((i14 = i._getTerrainColor.call(this, 0, 100, b)) <= hColorThresholds[i3 * 4]) {
+          const _thr = hGroundProb[i3 * 4];
+          if ((i14 = rr(0, 100)) <= _thr) {
             n = 159;
-          } else if (i14 <= hColorThresholds[i3 * 4] + hColorThresholds[i3 * 4 + 1]) {
+          } else if (i14 <= _thr + hGroundProb[i3 * 4 + 1]) {
             n = 174;
-          } else if (i14 <= hColorThresholds[i3 * 4] + hColorThresholds[i3 * 4 + 1] + hColorThresholds[i3 * 4 + 2]) {
+          } else if (i14 <= _thr + hGroundProb[i3 * 4 + 1] + hGroundProb[i3 * 4 + 2]) {
             n = 189;
           } else {
             n = 204;
-          } 
+          }
           if (n === -1)
             n = 159; 
           i1 = n;
-          i2 = i._getTerrainColor.call(this, 1, 3, b);
+          i2 = rr(1, 3);
         } 
-        n = (n = i1 + i._getTerrainColor.call(this, 0, 2, b)) - 3 * b;
+        n = (n = i1 + rr(0, 2)) - 3 * b;
         if (paramInt6 === 66) {
           b1 = 2;
         } else if (paramInt6 === 20) {
@@ -3338,7 +3590,10 @@ export class i extends Screen {
         } 
         if (i3 !== 7 || j < i11 || j > i12) {
           try {
-            cRes.drawSprite(n, j + i._getTerrainColor.call(this, -b1, b1, b), k + i._getTerrainColor.call(this, -b1, b1, b), paramGraphics);
+            const _jx = rr(-b1, b1);
+            const _jy = rr(-b1, b1);
+            cRes.drawSprite(n, j + _jx, k + _jy, paramGraphics);
+            dbgR('terrainCol tile', { n, j, k, jx: _jx, jy: _jy, b, b1, band: paramInt7, i9: cRes.getSpriteData(n, 2), i10: cRes.getSpriteData(n, 3) / 2 });
           } catch(_e) {}
         }
         if (j === paramInt3 + paramInt5) {
@@ -3858,7 +4113,7 @@ export class i extends Screen {
     //   179: ireturn
   }
   
-  static t() {
+  static tInit() {
     // Byte code:
     //   0: iconst_0
     //   1: istore_0
@@ -4578,7 +4833,7 @@ export class i extends Screen {
     } 
   }
   
-  static t(paramInt) {
+  static tMsg(paramInt) {
     for (let b = 0; b < k.length; b++) {
       if (k[b] === paramInt)
         return; 
@@ -4594,28 +4849,28 @@ export class i extends Screen {
     let b1 = 0;
     for (let b2 = 0; b2 < paramInt; b2++) {
       b1 = 0;
-      for (let b = 0; b < e.length; b += 2) {
-        e[b + 1] = (e[b + 1] - 26);
-        if (f[b >> 1] === 0 && e[b + 1] < 26 && e[b + 1] > 0) {
+      for (let b = 0; b < this.eArr.length; b += 2) {
+        this.eArr[b + 1] = (this.eArr[b + 1] - 26);
+        if (this.f[b >> 1] === 0 && this.eArr[b + 1] < 26 && this.eArr[b + 1] > 0) {
           b1++;
-        } else if (e[b + 1] <= 0) {
-          e[b] = a(-127, 127, a);
-          e[b + 1] = a(101, 127, a);
+        } else if (this.eArr[b + 1] <= 0) {
+          this.eArr[b] = this.aRandom(-127, 127, this.a);
+          this.eArr[b + 1] = this.aRandom(101, 127, this.a);
           if (Q) {
-            f[b >> 1] = 0;
+            this.f[b >> 1] = 0;
           } else {
-            f[b >> 1] = 1;
+            this.f[b >> 1] = 1;
           } 
         } 
       } 
       if (Q) {
         Q--;
         if (Q)
-          P = a(5, 100, a); 
+          P = this.aRandom(5, 100, this.a); 
       } else if (P) {
         P--;
         if (P)
-          Q = a(5, 20, a); 
+          Q = this.aRandom(5, 20, this.a); 
       } 
     } 
     if (b1 > 0) {
@@ -6762,86 +7017,15 @@ export class i extends Screen {
     return false;
   }
   
-  a(paramInt1, paramInt2, paramInt3, paramGraphics) {
-    for (let b = 0; b < (h.b[paramInt3]).length; b += 3) {
-      let c;
-      let l = h.b[paramInt3][b + 2];
-      if (paramInt3 === 11 || paramInt3 === 12 || paramInt3 === 13 || paramInt3 === 14)
-        if (l === 235) {
-          if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = 'Ã½';
-          } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = 'Ã«';
-          } else {
-            c = 'Ã´';
-          } 
-        } else if (c === 'Ã¬') {
-          if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = 'Ã½';
-          } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = 'Ã¬';
-          } else {
-           c = 'Ãµ';
-          } 
-        } else if (c === 'Ã­') {
-          if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = 'Ã¿';
-          } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = 'Ã­';
-          } else {
-            c = 'Ã¶';
-          } 
-        } else if (c === 'Ã®') {
-          if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = 'Ä€';
-          } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = 'Ã®';
-          } else {
-            c = 'Ã·';
-          } 
-        } else if (c === 'Ã¯') {
-          if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = 'Ä';
-          } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = 'Ã¯';
-          } else {
-            c = 'Ã¸';
-          } 
-        } else if (c === 'Ã°') {
-          if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = 'Ä‚';
-          } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = 'Ã°';
-          } else {
-            c = 'Ã¹';
-          } 
-        } else if (c === 'Ã²') {
-          if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = 'Ä„';
-          } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = 'Ã²';
-          } else {
-            c = 'Ã»';
-          } 
-        } else if (c === 'Ã³') {
-          if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = 'Ä…';
-          } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = 'Ã³';
-          } else {
-            c = 'Ã¼';
-          } 
-        } else if (c === 'Ã±') {
-          if ((i >= 20 && i <= 23) || (i >= null && i <= 4)) {
-            c = 'Äƒ';
-          } else if ((i >= 8 && i <= 11) || (i >= 12 && i <= 16)) {
-            c = 'Ã±';
-          } else {
-            c = 'Ãº';
-          } 
-        }  
-      c.a(paramInt1 + h.b[paramInt3][b], paramInt2 + h.b[paramInt3][b + 1], c, paramGraphics);
-    } 
+  drawHouseLayer(paramInt1, paramInt2, paramInt3, paramGraphics) {
+    const row = hPrefabs[paramInt3];
+    if (!row) return;
+    dbgR('houseLayer', { prefab: paramInt3, x: paramInt1, y: paramInt2, triples: row.length / 3, ids: row.filter((_, idx) => idx % 3 === 2) });
+    for (let b = 0; b < row.length; b += 3) {
+      const spriteId = row[b + 2];
+      if (spriteId < 0) continue;
+      cRes.drawSprite(spriteId, paramInt1 + row[b], paramInt2 + row[b + 1], paramGraphics);
+    }
   }
   
   h() {
@@ -7278,5 +7462,18 @@ export class i extends Screen {
     pair7[0] = 7; pair7[1] = 6;
     transitionPairs[7] = pair7;
     this.transitionPairs = transitionPairs;
+  }
+}
+
+
+// Level-1 store: mirror static methods onto the prototype so the ported
+// instance-context calls this.X(...) resolve ('this' is then the instance).
+{
+  const _proto = i.prototype;
+  for (const _k of Object.getOwnPropertyNames(i)) {
+    if (_k === 'length' || _k === 'name' || _k === 'prototype') continue;
+    if (typeof i[_k] !== 'function') continue;
+    if (Object.prototype.hasOwnProperty.call(_proto, _k)) continue;
+    _proto[_k] = i[_k];
   }
 }

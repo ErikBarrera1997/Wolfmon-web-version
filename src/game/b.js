@@ -47,7 +47,7 @@ export class b extends Screen {
 
     this._hasTitle = false;
     if (titleString != null) {
-      this.a[0] = titleString;
+      this.aText[0] = titleString;
       this._hasTitle = true;
     }
   }

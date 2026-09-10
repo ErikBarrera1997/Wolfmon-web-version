@@ -2,6 +2,8 @@ import { DataInputStream } from '../j2me/DataInputStream.js';
 import { Image } from '../images/Image.js';
 import { loadAssetBytes } from './loader.js';
 
+console.log('[c.js] stamp=2026-08-29B');
+
 let resources = null;
 let spriteRows = null;
 let catalog = null;
@@ -10,6 +12,40 @@ let languageIndex = 0;
 let langFilterFrom = -1;
 let langFilterTo = -1;
 const clipRectTemp = new Int32Array(4);
+
+// ---- sprite debug instrumentation ----
+// Toggle live from the console:  __WM_DEBUG_DRAW = false  silences these logs.
+let _dbgDraw = 0;
+const _missRows = new Map();
+const _missImgs = new Map();
+function dbgDrawEnabled() {
+  const v = globalThis.__WM_DEBUG_DRAW;
+  return v === undefined ? true : !!v;
+}
+function dbgDraw(...args) {
+  if (!dbgDrawEnabled()) return;
+  if (++_dbgDraw % 12 !== 0) return;
+  console.log('[dbg-draw]', ...args);
+}
+function _missRow(id) {
+  _missRows.set(id, (_missRows.get(id) || 0) + 1);
+}
+function _missImg(id, row) {
+  _missImgs.set(id, (_missImgs.get(id) || 0) + 1);
+}
+function _flushMisses() {
+  if (!dbgDrawEnabled()) return;
+  if (_missRows.size) {
+    const summary = [..._missRows].map(([id, n]) => 'id=' + id + ' x' + n).join(' ');
+    console.log('[dbg-draw] MISSING ROWS:', summary);
+    _missRows.clear();
+  }
+  if (_missImgs.size) {
+    const summary = [..._missImgs].map(([id, n]) => 'id=' + id + ' x' + n).join(' ');
+    console.log('[dbg-draw] MISSING IMAGES:', summary);
+    _missImgs.clear();
+  }
+}
 
 export function init() {
   resources = new Array(64);
@@ -199,6 +235,39 @@ export async function unloadGroup(groupId) {
   }
 }
 
+export async function loadResourceRaw(id) {
+  const c = await getCatalog();
+  if (resources[id] != null) return resources[id];
+  const name = c[1][id];
+  const len = c[2][id];
+  const stream = DataInputStream.fromBytes(await loadAssetBytes(name));
+  skipBytes(stream, c[0][id]);
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = stream.readUnsignedByte();
+  stream.close();
+  resources[id] = bytes;
+  return bytes;
+}
+
+export async function loadResourceById(id) {
+  const c = await getCatalog();
+  if (id <= 0 || (resources[id] != null && id !== 0)) return resources[id];
+  const name = c[1][id];
+  const stream = DataInputStream.fromBytes(await loadAssetBytes(name));
+  skipBytes(stream, c[0][id]);
+  let parsed = null;
+  try {
+    parsed = await parseResource(stream, id, c[2][id]);
+  } finally {
+    stream.close();
+  }
+  if (parsed != null) {
+    const img = await decodePNGResource(parsed);
+    resources[id] = img;
+  }
+  return resources[id];
+}
+
 export function getResource(id) {
   return resources[id];
 }
@@ -274,9 +343,18 @@ function clipRect(g, x, y, w, h, out) {
 
 export function drawSprite(spriteId, x, y, g) {
   const row = spriteRows[spriteId];
-  if (row == null) return;
+  if (row == null) {
+    _missRow(spriteId);
+    if (_dbgDraw % 144 === 0) _flushMisses();
+    return;
+  }
   const image = getResource(row[6]);
-  if (image == null) return;
+  if (image == null) {
+    _missImg(spriteId, row);
+    if (_dbgDraw % 144 === 0) _flushMisses();
+    return;
+  }
+  dbgDraw('sprite', { id: spriteId, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, ox: row[0], oy: row[1], w: row[2], h: row[3], ax: row[4], ay: row[5], res: row[6] });
   if (clipRect(g, x - row[4], y - row[5], row[2], row[3], clipRectTemp)) {
     g.drawImage(image, x - row[4] - row[0], y - row[5] - row[1], 20);
     g.setClip(clipRectTemp[0], clipRectTemp[1], clipRectTemp[2], clipRectTemp[3]);

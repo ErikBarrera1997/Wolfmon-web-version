@@ -93,6 +93,7 @@ export class h {
 
   async handleEvent(eventId) {
     if (eventId === 1) {
+      console.log('[h] handleEvent(1) begin');
       n.setSoundEnabled(false);
       try {
         const data = m.loadRecord('l');
@@ -103,17 +104,20 @@ export class h {
       try { cachedLangNames = await c.getLanguageNames(); } catch (_e) { cachedLangNames = []; }
       m.postEvent(langIdx === -1 ? 6 : 8, this);
       await c.loadResources(0);
+      console.log('[h] resources group 0 loaded');
 
       langReady = 4;
       if (bootPhase >= 5) m.postEvent(11, this);
 
       await c.loadResources(1);
+      console.log('[h] resources group A loaded');
       setEngine(this);
       setUpArrow(upArrow);
       setDownArrow(downArrow);
       checkSaveData();
       loadHighScores();
       await loadMenuSprites();
+      console.log('[h] menu sprites loaded');
 
       await waitFor(() => bootPhase > 4);
 
@@ -121,9 +125,11 @@ export class h {
 
       langReady = 5;
       await waitFor(() => bootPhase >= 7);
+      console.log('[h] bootPhase >= 7, showing menu');
 
       showMenuOrGame();
       await waitFor(() => m.getCurrentScreen() instanceof j);
+      console.log('[h] menu screen active');
 
       menuSpritesH = c.getSpriteData(2, 3);
       try { await c.unloadGroup(0); } catch (_e) {}
@@ -420,7 +426,7 @@ async function loadWorldSpritesForLevel(level) {
 async function createOffscreenBuffers() {
   const groups = [24,53,23,6,7,8,9,15,17,18,10,11,12,13,20,21,16,14,45,22,47,48,49,50,51,32,33,34,35,19,52,54,55,56,57];
   for (const g of groups) {
-    try { await c.loadResources(g); } catch (_e) {}
+    try { await c.loadResourceById(g); } catch (_e) {}
   }
 }
 
@@ -431,6 +437,7 @@ async function loadGameWorldResources() {
   unloadMenuSprites();
   await unloadWorldSpritesAsync();
   if (!gameScreen) gameScreen = new GameScreen();
+  try { await c.loadResourceRaw(63); } catch (_e) { console.warn('[h] loadResourceRaw(63):', _e.message); }
   try { gameScreen.loadTileData(); } catch (_e) { console.warn('[h] loadTileData:', _e.message); }
   await createOffscreenBuffers();
 }

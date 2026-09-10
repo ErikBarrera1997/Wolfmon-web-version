@@ -5,9 +5,9 @@ export const SCREEN_H = 208;
 
 export class Screen {
   constructor() {
-    this.a = new Array(2);
-    this.a[0] = '';
-    this.a[1] = '';
+    this.aText = new Array(2);
+    this.aText[0] = '';
+    this.aText[1] = '';
     this.d = 1;
     this._softKeyIdx = 0;
   }
@@ -15,7 +15,7 @@ export class Screen {
   setTitle(text, index) {
     const c = Display.getCanvas();
     if (c == null) return;
-    this.a[index] = text;
+    this.aText[index] = text;
     if (this === c._currentScreen) {
       c.setBarText(text, index);
     }

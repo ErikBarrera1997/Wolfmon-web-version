@@ -189,7 +189,7 @@ export class j extends Screen {
     this.softKeyValues[idx] = val2;
     this.softKeyLabels[idx] = text;
     this.softKeyEnabled[idx] = true;
-    this.a[idx] = text;
+    this.aText[idx] = text;
   }
 
   setItemText(idx, text) {
