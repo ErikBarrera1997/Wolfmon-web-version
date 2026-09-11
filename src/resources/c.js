@@ -2,8 +2,6 @@ import { DataInputStream } from '../j2me/DataInputStream.js';
 import { Image } from '../images/Image.js';
 import { loadAssetBytes } from './loader.js';
 
-console.log('[c.js] stamp=2026-08-29B');
-
 let resources = null;
 let spriteRows = null;
 let catalog = null;
@@ -20,7 +18,7 @@ const _missRows = new Map();
 const _missImgs = new Map();
 function dbgDrawEnabled() {
   const v = globalThis.__WM_DEBUG_DRAW;
-  return v === undefined ? true : !!v;
+  return v === undefined ? false : !!v;
 }
 function dbgDraw(...args) {
   if (!dbgDrawEnabled()) return;

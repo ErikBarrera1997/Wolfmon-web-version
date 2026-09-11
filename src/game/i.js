@@ -88,7 +88,7 @@ const hColorThresholds = [
   [1119780, 7051759, 5461083, 6455993, 11711146, 5074088, 8351325, 3813974],
   [2504023, 12636653, 12817489, 15770183, 10531279, 13737876, 14109207, 9183513]
 ];
-console.log('[i.js] stamp=2026-08-29B');
+// [dbg removed]
 
 // ---- render-debug instrumentation ----
 // Toggle live from the console:  __WM_DEBUG_RENDER = false  silences all
@@ -102,7 +102,7 @@ function dbgEnabled() {
 function dbgR(tag, ...args) {
   if (!dbgEnabled()) return;
   if (++_dbgCount % DBG_EVERY !== 0) return;
-  console.log('[dbg-render]', tag, ...args);
+  void tag; void args;
 }
 function _typeOf(v) {
   if (v === null) return 'null';
@@ -122,12 +122,13 @@ function dbgOnce(tag, ...args) {
   if (!dbgOnce._seen) dbgOnce._seen = new Set();
   if (dbgOnce._seen.has(tag)) return;
   dbgOnce._seen.add(tag);
-  console.log('[dbg-render]', tag, ...args);
+  void tag; void args;
 }
 
 export class i extends Screen {
   u = new Int16Array(130);
   v = new Int8Array(130);
+  pFlag = new Int8Array(130);
   d = Array(130).fill(false);
   e = Array(130).fill(false);
   terrainCols = [11, 14, 12, 11, 13, 12];
@@ -351,7 +352,7 @@ export class i extends Screen {
   nFlag = false;
   FVal = 0;
   oFlag = false;
-  pFlag = false;
+  pFlag = new Int8Array(130);
   oByte = 0;
   pByte = 0;
   qFlag = false;
@@ -405,12 +406,12 @@ export class i extends Screen {
 
   constructor() {
     super();
-    console.log("[i.js] constructor: initializing game state");
+// [dbg removed]
     this.resetGameState();
   }
 
   resetGameState() {
-    console.log("[i.js] resetGameState: resetting game state variables");
+// [dbg removed]
     this.u = new Int16Array(130);
     this.v = new Int8Array(130);
     this.d = Array(130).fill(false);
@@ -464,28 +465,36 @@ export class i extends Screen {
     this.tableA = Array.from({ length: 9 }, () => []);
     this.arrD = new Int32Array(9);
     this.arrE = new Int32Array(9);
-    console.log('[dbg] resetGameState field dump:', {
-      u: _typeOf(this.u), v: _typeOf(this.v),
-      d: _typeOf(this.d), e: _typeOf(this.e), eArr: _typeOf(this.eArr),
-      f: _typeOf(this.f), kArr: _typeOf(this.kArr),
-      dValue: this.d, eValue: this.e,
-      mapW: this.mapW, mapH: this.mapH, tileData: !!this.tileData,
-      h: this.h, i: this.i, H: this.H
-    });
-    console.log('[i.js] resetGameState: game state reset');
   }
 
   paintScreen(g) {
-    console.log('[i.js] paintScreen: rendering frame');
+    dbgR('paint', 'frame');
     try {
       g.setClip(0, 0, 176, 208);
       g.setColor(0x000000);
       g.fillRect(0, 0, 176, 208);
       if (!this._paintLogged) {
         this._paintLogged = true;
-        console.log('[i.js] paintScreen: first frame rendered');
+// [dbg removed]
       }
       i._paintEntry.call(this, g);
+      if (globalThis.__WM_DEBUG_HUD !== false) {
+        g.setColor(0xffffff);
+        const now = (globalThis.performance || Date).now();
+        const flash = (this._lastKey != null && now - this._lastKeyAt < 1000) ? ' <= ' + this._lastKey : '';
+        let _dx = [0, 1, 1, 1, 0, -1, -1, -1][(this.h & 7) % 8];
+        let _dy = [-1, -1, 0, 1, 1, 1, 0, -1][(this.h & 7) % 8];
+        const lines = [
+          'C=' + this.C + ' m=' + this.m + ' l=' + (this.l === null ? 'n' : (typeof this.l === 'number' ? '#l' + this.l : 's')),
+          'd=' + this.d + ' e=' + this.e + ' h=' + this.h,
+          'i=' + this.i + ' z=' + this.z + ' a=' + this.aProgress,
+          'keys=' + this.bCam.slice(0, 9).map((v) => (v ? 1 : 0)).join('') + flash,
+          'tgt=(' + (this.d + _dx) + ',' + (this.e + _dy) + ') ' + (this._dbgStep || 'idle'),
+        ];
+        for (let li = 0; li < lines.length; li++) {
+          g.drawString(lines[li], 1, 1 + li * 8, 4);
+        }
+      }
     } catch (_e) {
       g.setColor(0x000000);
       g.fillRect(0, 0, 176, 208);
@@ -499,7 +508,7 @@ export class i extends Screen {
   update(dt) {
     this._frameCount = (this._frameCount || 0) + 1;
     if (this._frameCount % 60 === 0) {
-      console.log('[i.js] beat frame=' + this._frameCount + ' i=' + this.i + ' z=' + this.z + ' D=' + this.D + ' A=' + this.aProgress + ' C=' + this.C + ' oVal=' + this.oVal + ' pVal=' + this.pVal + ' qVal=' + this.qVal);
+// [dbg removed]
     }
     try {
       i.eUpdate.call(this, dt);
@@ -524,7 +533,7 @@ export class i extends Screen {
     }
     if (globalThis.__WM_DEBUG_AUTOMOVE) {
       this.bCam[0] = true;
-      if (this._frameCount % 600 === 0) console.log('[dbg-auto] holding forward C=' + this.C + ' aProgress=' + this.aProgress + ' gateF=' + this.F + ' m=' + this.m);
+// [dbg removed]
     }
     try {
       i.jStep.call(this);
@@ -534,7 +543,7 @@ export class i extends Screen {
   }
 
   screenEntered() {
-    console.log('[i.js] screenEntered: game is now active');
+// [dbg removed]
   }
 
   aCheck() {
@@ -548,7 +557,7 @@ export class i extends Screen {
   }
 
   loadTileData() {
-    console.log('[i.js] loadTileData: loading tile data');
+// [dbg removed]
     try {
       const data = cRes.getResource(63);
       if (!data) return;
@@ -574,7 +583,7 @@ export class i extends Screen {
         off++;
         this.entityDefs.push({ tx: hi, ty: lo, tx2: hi2, ty2: lo2 });
       }
-      console.log('[i.js] loadTileData: map=' + this.mapW + 'x' + this.mapH + ' entities=' + entityCount);
+// [dbg removed]
     } catch (_e) {
       console.warn('[i.js] loadTileData error:', _e.message);
     }
@@ -584,7 +593,7 @@ export class i extends Screen {
     try {
       const data = cRes.getResource(64);
       if (!data) return;
-      console.log('[i.js] loadWorldData: loaded');
+// [dbg removed]
     } catch (_e) {
       console.warn('[i.js] loadWorldData error:', _e.message);
     }
@@ -595,7 +604,9 @@ export class i extends Screen {
   }
 
   keyPressed(paramInt) {
-    console.log('[dbg-key] keyPressed', paramInt, 'C=' + this.C, 'm=' + this.m, 'l=' + (this.l === null ? 'null' : typeof this.l));
+// [dbg removed]
+    this._lastKey = paramInt;
+    this._lastKeyAt = (globalThis.performance || Date).now();
     for (let i = 0; i < 9; i++) {
       this.bCam[i] = false;
     }
@@ -706,9 +717,9 @@ export class i extends Screen {
 
     this.aCall(true, this.a);
     if (this.r !== -1) {
-      this.d();
-      this.h.b = this.r;
-      if (this.r === 8) this.y();
+      if (typeof this.d === 'function') this.d();
+      if (typeof this.h === 'object' && this.h !== null) this.h.b = this.r;
+      if (this.r === 8 && typeof this.y === 'function') this.y();
       this.m?.a?.(18, this);
       return;
     }
@@ -878,23 +889,24 @@ export class i extends Screen {
   
   static jStep() {
     if (this.F !== 0 || this.t !== null || this.C <= 0 || this.y !== null || this.x !== null || this.m === 5 || (this.m === 6 && this.l === null) || this.m === 7 || this.m === 8) {
-      dbgR('jStep gate', { F: this.F, t: this.t, C: this.C, y: this.y, x: this.x, m: this.m, l: this.l, B: this.B, aProgress: this.aProgress, z: this.z });
+      this._dbgStep = 'gate F' + this.F + '/t' + (this.t !== null) + '/C' + this.C + '/y' + (this.y !== null) + '/x' + (this.x !== null) + '/m' + this.m + '/l' + (this.l !== null);
       return;
     }
     if (this.D <= 0) {
       if (!this.j) {
+        const _Jact = (this.bCam[0] !== null || this.bCam[1] !== null || this.bCam[2] !== null || this.bCam[3] !== null);
         let b1 = this.h;
         let bool = this.h;
         let b2 = this.d;
         let b3 = this.e;
         if (this.bCam[2] !== null) {
           b1 = bool - 1;
-          this.bCam[2] = false;
+          this.bCam[2] = null;
         } else if (this.bCam[3] !== null) {
           b1 = b1 + 1;
-          this.bCam[3] = false;
+          this.bCam[3] = null;
         } else if (this.bCam[0] !== null) {
-          this.bCam[0] = false;
+          this.bCam[0] = null;
           switch (b1) {
             case 0:
               b3 -= 1;
@@ -927,19 +939,22 @@ export class i extends Screen {
           }
         } else if (this.bCam[1] !== null) {
           b1 = b1 + 4;
-          this.bCam[1] = false;
+          this.bCam[1] = null;
         }
         if (b1 < 0) {
           b1 += 8;
         } else if (b1 > 7) {
           b1 -= 8;
         }
+        if (_Jact) dbgR('J', { h: this.h, b1, tgt: [b2, b3], flags: [this.bCam[0] !== null, this.bCam[1] !== null, this.bCam[2] !== null, this.bCam[3] !== null] });
         if (b2 === 27 && b3 === 39 && this.aCam !== null && this.bCam !== null && this.C !== 0) {
           this.x = true;
           this.v();
           this.hero.a();
           this.r = 7;
-        } else if (b3 < 0 || b3 >= this.c) {
+        } else if (b3 < 0 || b3 >= this.mapH) {
+          this._dbgStep = 'edge(' + b2 + ',' + b3 + ',H=' + this.mapH + ',h=' + this.h + ')';
+          dbgR('jStep edge', { b2, b3, H: this.mapH, C: this.C, h: this.h });
           if (this.C !== 0) {
             this.a(211, null, -1);
           } else {
@@ -947,6 +962,7 @@ export class i extends Screen {
           }
         }
         if ((b2 !== this.d || b3 !== this.e) && this.bCheck(b2, b3)) {
+          this._dbgStep = 'move(' + b2 + ',' + b3 + ',h=' + this.h + ')';
           dbgR('jStep move', { from: [this.d, this.e], to: [b2, b3], h: this.h, d: this.D });
           this.hero.d();
           if (this.A !== 0 && this.aTile(b2, b3, 0, 7) !== 7) {
@@ -966,11 +982,11 @@ export class i extends Screen {
               this.g = this.e;
               this.d = b2;
               this.e = b3;
-              this.u(1);
+              this.uStep(1);
               this.s[this.S] = this.d;
               this.t[this.S] = this.e;
               this.g = false;
-              this.u1(1);
+              this.uStep(1);
               this.n();
               this.bPaint(null);
               return;
@@ -984,7 +1000,7 @@ export class i extends Screen {
             this.g = this.e;
             this.d = b2;
             this.e = b3;
-            this.u(1);
+            this.uStep(1);
             if (this.J === 0 && this.m === -1) {
               this.J = 1;
               this.v = true;
@@ -1031,8 +1047,8 @@ export class i extends Screen {
               this.f = 0;
             }
             this.g = false;
-            this.u1(1);
-            this.f1(1);
+            this.uStep(1);
+            this.fUpdate(1);
             if (this.m === -1) {
               this.aFunc(this.f, this.g);
               this.jAction(1);
@@ -1041,8 +1057,8 @@ export class i extends Screen {
             }
             this.n();
             if (this.m === -1) {
-              this.i();
-              this.l();
+              this.iMethod();
+              this.lMethod();
             }
             this.bPaint(null);
             if (this.w === null && this.N + 48 <= this.z && this.t === null && this.r === null && this.C === 0) {
@@ -1052,6 +1068,7 @@ export class i extends Screen {
             return;
           }
         } else if (b1 !== this.h) {
+          this._dbgStep = 'turn->' + b1 + '(h' + this.h + ')';
           this.hero.d();
           if (this.A !== 0 && this.aTile(b2, b3, 0, 7) !== 7) {
             for (let i = 0; i < this.aCam.g; i++) {
@@ -1070,7 +1087,7 @@ export class i extends Screen {
         }
       }
       if (this.bCam[4] !== null) {
-        this.bCam[4] = false;
+        this.bCam[4] = null;
         let b = this.A[this.o * 2 + 1];
         let j = this.o * 2;
         let k = this.aTile(this.d, this.e, 13, 57344);
@@ -1089,12 +1106,12 @@ export class i extends Screen {
         }
       }
       if (this.bCam[8] !== null) {
-        this.bCam[8] = false;
+        this.bCam[8] = null;
         this.h = !this.h;
         return;
       }
       if (this.bCam[7] !== null) {
-        this.bCam[7] = false;
+        this.bCam[7] = null;
         if (this.G !== null && !this.h) {
           this.v = false;
           this.i = true;
@@ -1103,12 +1120,12 @@ export class i extends Screen {
         }
       } else {
         if (this.bCam[5] !== null) {
-          this.bCam[5] = false;
+          this.bCam[5] = null;
           this.hMove(-1);
           return;
         }
         if (this.bCam[6] !== null) {
-          this.bCam[6] = false;
+          this.bCam[6] = null;
           this.hMove(1);
           return;
         }
@@ -1429,6 +1446,7 @@ export class i extends Screen {
   }
 
   static n() {
+    return; // [port-gap] entity-interaction scan disabled (s/t/r/u/v/B arrays collide with scalars); enable when entity system is ported
     this.l = false;
     this.B = -1;
     this.m = false;
@@ -1859,7 +1877,7 @@ export class i extends Screen {
     dbgR('jTick', { aProgress: this.aProgress, i: this.i, C: this.C, Aproto: this.aProgress >= 30 });
     let bool = false;
     if (this.aProgress >= 30 && this.I === 0 && this.C === 0) {
-      console.log('[dbg-intro] INTRO TRIGGER aProgress=' + this.aProgress);
+// [dbg removed]
       this.c = false;
       this.e = 0;
       this.G = false;
@@ -1895,7 +1913,7 @@ export class i extends Screen {
       let b;
       for (b = 0; b < this.h.length; b++) {
         if (this.o[b] === this.a(this.d, this.e, 9, 7680)) {
-          this.n(b);
+          this.nB(b);
         }
       }
       for (b = 0; b < this.h.length; b++) {
@@ -2004,7 +2022,7 @@ export class i extends Screen {
     }
   }
   
-  static n(paramInt) {
+  static nB(paramInt) {
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       if (this.a(this.i[paramInt], this.j[paramInt], this.f, this.g)) {
@@ -2076,7 +2094,7 @@ export class i extends Screen {
   static r(paramInt) {
     while (true) {
       let b1 = this.a(0, this.b, this.a);
-      let b2 = this.a(0, this.c, this.a);
+      let b2 = this.a(0, this.mapH, this.a);
       if (!this.c(b1, b2, paramInt) || this.a(this.d, this.e, b1, b2)) continue;
       this.i[paramInt] = b1;
       this.j[paramInt] = b2;
@@ -2087,7 +2105,7 @@ export class i extends Screen {
   }
   
   static a(paramByte1, paramByte2, paramInt1, paramInt2) {
-    return (paramByte1 >= 0 && paramByte1 < this.b && paramByte2 >= 0 && paramByte2 < this.c) ? ((this.s[paramByte1 + paramByte2 * this.b] & paramInt2) >> paramInt1) : ((paramByte2 >= this.c) ? -1 : 6);
+    return (paramByte1 >= 0 && paramByte1 < this.mapW && paramByte2 >= 0 && paramByte2 < this.mapH) ? ((this.s[paramByte1 + paramByte2 * this.mapW] & paramInt2) >> paramInt1) : ((paramByte2 >= this.mapH) ? -1 : 6);
   }
   
   static _isDaytime() {
@@ -2164,7 +2182,7 @@ export class i extends Screen {
   }
   
   static b(paramInt1, paramInt2) {
-    if (paramInt1 < 0 || paramInt1 >= this.b || paramInt2 < 0 || paramInt2 >= this.c) return false;
+    if (paramInt1 < 0 || paramInt1 >= this.mapW || paramInt2 < 0 || paramInt2 >= this.mapH) return false;
     let j = this.a(paramInt1, paramInt2, 0, 7);
     let k = this.a(paramInt1, paramInt2, 13, 57344);
     return (j === 6 && k !== 2 && k !== 4) ? false : (!(k === 4 && this.I !== 0));
@@ -3240,9 +3258,9 @@ export class i extends Screen {
       }
     }
     let i7;
-    try {
     let _eVis = 0;
     let _eFirst = null;
+    try {
     for (i7 = 0; i7 < this.eArr.length; i7 += 2) {
       if ((i5 = this.eArr[i7 + 1] / 21) < 0) {
         i5 = 0;
@@ -3253,7 +3271,7 @@ export class i extends Screen {
         if (!_eVis++) _eFirst = [i7, this.eArr[i7], this.eArr[i7 + 1]];
         if (b1 === 0 || this.i === 19) {
           cRes.drawSprite(this.gfxDef[i5], 1000 * (this.eArr[i7] - i2) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
-        } else if (this.f[i7 >> 1] === 0) {
+        } else if (this.pFlag[i7 >> 1] === 0) {
           cRes.drawSprite(this.gfxOn[i5], 1000 * (this.eArr[i7] - i2) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         } else {
           cRes.drawSprite(this.gfxOff[i5], 1000 * (this.eArr[i7] - i2) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
@@ -3262,7 +3280,7 @@ export class i extends Screen {
         if (!_eVis++) _eFirst = [i7, this.eArr[i7], this.eArr[i7 + 1]];
         if (b1 === 0 || this.i === 19) {
           cRes.drawSprite(this.gfxDef[i5], 1000 * (this.eArr[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
-        } else if (this.f[i7 >> 1] === 0) {
+        } else if (this.pFlag[i7 >> 1] === 0) {
           cRes.drawSprite(this.gfxOn[i5], 1000 * (this.eArr[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
         } else {
           cRes.drawSprite(this.gfxOff[i5], 1000 * (this.eArr[i7] + 128 + 32) / 64 * 176 / 1000, 1000 * this.eArr[i7 + 1] / 128 * this.H / 1000, paramGraphics);
@@ -3302,7 +3320,7 @@ export class i extends Screen {
     let m = paramInt4;
     let n = paramInt2;
     let bool2;
-    if (paramByte1 >= 0 && paramByte1 < this.b && paramByte2 >= 0 && paramByte2 < this.c) {
+    if (paramByte1 >= 0 && paramByte1 < this.mapW && paramByte2 >= 0 && paramByte2 < this.mapH) {
       bool2 = this.a(paramByte1, paramByte2, 0, 7);
     } else {
       bool2 = false;
@@ -3812,7 +3830,7 @@ export class i extends Screen {
     if (minimapX > this.b - 5) minimapX = (this.b - 5);
     let minimapY = (this.e - 2);
     if (minimapY < 0) minimapY = 0;
-    if (minimapY > this.c - 5) minimapY = (this.c - 5);
+    if (minimapY > this.mapH - 5) minimapY = (this.mapH - 5);
     for (let ax = minimapX; ax < minimapX + 5; ax++) {
       for (let ay = minimapY; ay < minimapY + 5; ay++) {
         i._drawMinimapTile.call(this, ax, ay, minimapX, minimapY, paramGraphics);
@@ -4662,7 +4680,7 @@ export class i extends Screen {
         if (h)
           h(paramGraphics); 
       } 
-      n(paramGraphics);
+      i.prototype.nCaveDraw.call(this, paramGraphics);
     } 
     c.a(2, p.c - 2 - c.a(1, 3), 1, paramGraphics);
   }
@@ -4845,21 +4863,21 @@ export class i extends Screen {
     v = true;
   }
   
-  static u(paramInt) {
+  static uStep(paramInt) {
     let b1 = 0;
     for (let b2 = 0; b2 < paramInt; b2++) {
       b1 = 0;
       for (let b = 0; b < this.eArr.length; b += 2) {
         this.eArr[b + 1] = (this.eArr[b + 1] - 26);
-        if (this.f[b >> 1] === 0 && this.eArr[b + 1] < 26 && this.eArr[b + 1] > 0) {
+        if (this.pFlag[b >> 1] === 0 && this.eArr[b + 1] < 26 && this.eArr[b + 1] > 0) {
           b1++;
         } else if (this.eArr[b + 1] <= 0) {
           this.eArr[b] = this.aRandom(-127, 127, this.a);
           this.eArr[b + 1] = this.aRandom(101, 127, this.a);
           if (Q) {
-            this.f[b >> 1] = 0;
+            this.pFlag[b >> 1] = 0;
           } else {
-            this.f[b >> 1] = 1;
+            this.pFlag[b >> 1] = 1;
           } 
         } 
       } 
@@ -4883,6 +4901,18 @@ export class i extends Screen {
       A = 3;
     } 
   }
+  // [port-gap] stubs for systems not yet ported (party AI, steps/encounters, stats, timers).
+  static aFunc() {}
+  static jAction() {}
+  static rAction() {}
+  static sAction() {}
+  static tAction() {}
+  static hMove() {}
+  static mAction() {}
+  static uAction() {}
+  static jValue() {}
+  static iMethod() {}
+  static lMethod() {}
   writeInt(paramArrayOfbyte, paramInt1, paramInt2) {
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 24 & 0xFF);
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 16 & 0xFF);
@@ -7376,7 +7406,7 @@ export class i extends Screen {
     paramGraphics.setClip(0, 0, 176, 208);
   }
   
-  n(paramGraphics) {
+  nCaveDraw(paramGraphics) {
     if (E === 0)
       return; 
     let j = ao ? (296 - D) : (291 + D);
