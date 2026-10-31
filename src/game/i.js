@@ -1,4 +1,5 @@
 import { Screen } from './p.js';
+import { Random } from '../j2me/Random.js';
 import * as cRes from '../resources/c.js';
 import * as n from './n.js';
 import * as mEngine from './m.js';
@@ -39,6 +40,19 @@ const hNightBounds = [
   [60, 79, 13, 53, 60, 100, 13, 100, 0, 79, 0, 53, 0, 100, 0, 100],
   [63, 74, 30, 64, 63, 100, 30, 100, 0, 74, 0, 64, 0, 100, 0, 100]
 ];
+
+// Java class h: byte[][] b..i (h.java:41-55) — the 5x5/5x7 tile-id neighbourhood
+// tables for the four diagonal facings, used by renderSpriteOffset
+// (Java i.java:7506). Kept under the original field names so the port stays
+// traceable back to h.java.
+const hDirB = [[-1, 0, 1, 2, 3, 4, -1], [5, 6, 7, 8, 9, 10, 11], [-1, 12, 13, 14, 15, 16, -1], [-1, -1, 17, 18, 19, -1, -1], [-1, -1, -1, 20, -1, -1, -1]];
+const hDirC = [[-1, -1, -1, 20, -1, -1, -1], [-1, -1, 19, 18, 17, -1, -1], [-1, 16, 15, 14, 13, 12, -1], [11, 10, 9, 8, 7, 6, 5], [-1, -1, -1, 2, -1, -1, -1]];
+const hDirD = [[-1, 11, -1, -1, -1], [4, 10, 16, -1, -1], [3, 9, 15, 19, -1], [2, 8, 14, 18, 20], [1, 7, 13, 17, -1], [0, 6, 12, -1, -1], [-1, 5, -1, -1, -1]];
+const hDirE = [[-1, -1, -1, 5, -1], [-1, -1, 12, 6, 0], [-1, 17, 13, 7, 1], [20, 18, 14, 8, 2], [-1, 19, 15, 9, 3], [-1, -1, 16, 10, 4], [-1, -1, -1, 11, -1]];
+const hDirF = [[-1, 0, 1, -1, 2], [5, 6, 7, 8, -1], [12, 13, 14, 9, 3], [17, 18, 15, 10, 4], [20, 19, 16, 11, -1]];
+const hDirG = [[-1, 11, 16, 19, 20], [4, 10, 15, 18, 17], [3, 9, 14, 13, 12], [-1, 8, 7, 6, 5], [2, -1, 1, 0, -1]];
+const hDirH = [[20, 17, 12, 5, -1], [19, 18, 13, 6, 0], [16, 15, 14, 7, 1], [11, 10, 9, 8, -1], [-1, 4, 3, -1, 2]];
+const hDirI = [[2, -1, 3, 4, -1], [-1, 8, 9, 10, 11], [1, 7, 14, 15, 16], [0, 6, 13, 18, 19], [-1, 5, 12, 17, 20]];
 
 // Java class h: byte[] a (h.java:101) — per-tile-type (low 3 bits of tile)
 // ground-base probabilities: 4 values per tile type for bases 159/174/189/204.
@@ -417,7 +431,30 @@ export class i extends Screen {
     this.d = Array(130).fill(false);
     this.e = Array(130).fill(false);
     this.eArr = new Int16Array(130);
+    // i.java:7405-7441 scatters horizon tufts into the Java statics u/v/e with
+    // an index counter a. Those names are all reused in the merged inner
+    // classes (this.u/this.v are reassigned to plain numbers, this.a is the
+    // Random, this.e is the player tile Y), so the buffers get their own names.
+    this.tuftX = new Int16Array(130);
+    this.tuftY = new Int8Array(130);
+    this.tuftFlag = new Int8Array(130);
+    this.tuftCount = 0;
+    this.tuftEnabled = true;
     this.f = new Int32Array(2);
+// Java keeps three distinct fields under the decompiled letter 'f': the int[2]
+// scratch above (f[0]/f[1], used by findNodeAt and the entity AI), a separate
+// int prompt-armed flag (0/1, read by handleEntityPrompt and reset to 0 on each
+// dialog advance), and the prev-tile-X saved before a move. They all lived on
+// this.f and clobbered each other, so the flag and prev-X get their own names.
+    this.fFlag = 0;
+    this.prevX = 0;
+// Java i.java:76-82 — the two 8-slot effect registries driven by d(int,int) and
+// ticked by t(). n[]/D[] and o[]/E[] (index + countdown timer). Kept under
+// descriptive names because n/D/o/E are scalars elsewhere in this port.
+    this.fxN = new Int32Array(8).fill(-1);
+    this.fxD = new Uint8Array(8);
+    this.fxO = new Int32Array(8).fill(-1);
+    this.fxE = new Uint8Array(8);
     this.aBool = false;
     this.aCam = new Array(180).fill(null);
     this.bCam = new Array(180).fill(null);
@@ -430,6 +467,14 @@ export class i extends Screen {
     this.randomA = Math.random;
     this.randomB = Math.random;
     this.randomC = Math.random;
+// Java i.java:574 builds three java.util.Random instances ('a', 'b', 'c') in
+// the static init. `this.a` was never assigned in this port, yet it is the
+// third argument to every randomBetween call (i.js:2361 does
+// paramRandom.nextInt()), so all ~13 of them threw on a null Random — which is
+// why entity placement and the map load silently aborted inside the
+// catch (_e) in loadTileData. randomA/B/C above are Math.random stubs left
+// over from an earlier pass and are not what the game reads.
+    this.a = new Random(Date.now());
     this.CBytes = new Int8Array(9);
     this.tShort = new Int32Array(9);
     this.i = 0;
@@ -462,6 +507,15 @@ export class i extends Screen {
     this.nVal = 0;
     this.HVal = 76;
     this.H = 76;
+// Java i.java:505 declares a second, unrelated `int J` (sky-band height) that
+// the decompiler merged with the `boolean J` of another inner class
+// (i.java:136), so it was never aliased here and `this.J` stayed undefined,
+// poisoning every `H + J` with NaN. The reference never assigns the int either.
+// Recovered from the layout constants: H=76 is the horizon (i.java:579), 169 is
+// the ground line (drawLine(0,169,176,169), i.js:4398), and i.java:4048/4051
+// draw the two sky bands as H..H+J and H+J..169 — so the bands tile the sky
+// exactly when J = 169 - H.
+    this.skyBand = 169 - this.H;
     this.tableA = Array.from({ length: 9 }, () => []);
     this.arrD = new Int32Array(9);
     this.arrE = new Int32Array(9);
@@ -511,14 +565,14 @@ export class i extends Screen {
 // [dbg removed]
     }
     try {
-      i.eUpdate.call(this, dt);
+      i.updateAmbientParticles.call(this, dt);
     } catch (_e) {
-      console.warn('[i.js] update/eUpdate:', _e.message, '\n' + (_e.stack || ''));
+      console.warn('[i.js] update/updateAmbientParticles:', _e.message, '\n' + (_e.stack || ''));
     }
     try {
-      i.aStep.call(this, dt);
+      i.updatePlacementState.call(this, dt);
     } catch (_e) {
-      console.warn('[i.js] update/aStep:', _e.message, '\n' + (_e.stack || ''));
+      console.warn('[i.js] update/updatePlacementState:', _e.message, '\n' + (_e.stack || ''));
     }
     this._tickAcc = this._tickAcc || 0;
     this._tickAcc += dt;
@@ -526,9 +580,9 @@ export class i extends Screen {
     while (this._tickAcc >= tickRate) {
       this._tickAcc -= tickRate;
       try {
-        i.jTick.call(this, 1);
+        i.advanceClock.call(this, 1);
       } catch (_e) {
-        console.warn('[i.js] update/jTick:', _e.message, '\n' + (_e.stack || ''));
+        console.warn('[i.js] update/advanceClock:', _e.message, '\n' + (_e.stack || ''));
       }
     }
     if (globalThis.__WM_DEBUG_AUTOMOVE) {
@@ -536,7 +590,7 @@ export class i extends Screen {
 // [dbg removed]
     }
     try {
-      i.jStep.call(this);
+      i.updateEntities.call(this);
     } catch (_e) {
       console.warn('[i.js] update/j:', _e.message, '\n' + (_e.stack || ''));
     }
@@ -546,16 +600,40 @@ export class i extends Screen {
 // [dbg removed]
   }
 
-  aCheck() {
+isDaytime() { /* aCheck */
     return this.i >= 6 && this.i <= 17;
   }
 
-  aRandom(paramInt1, paramInt2, paramRandom) {
+  randomInt(paramInt1, paramInt2, paramRandom) { /* aRandom */
     let max = paramInt2;
     if (max - paramInt1 + 1 === 0) max++;
     return ((Math.floor(Math.random() * 0x40000000)) % (max - paramInt1 + 1)) + paramInt1;
   }
 
+  placeEntity(paramInt) {
+// Java i.java:2879 r(int) — drops entity `paramInt` on a random map tile that
+// is not occupied and not adjacent to the player. Same body as
+// randomizeEntityPosition (i.js:2122) but writing the non-colliding
+// entX/entY/entPX/entPY arrays that loadTileData allocates, so the two do not
+// fight over this.i/this.j/this.k/this.l (this.i is the game-state counter).
+// The Java retries forever; canPlaceEntity requires the tile's
+// (bits >> 9) to equal the entity's sprite id, so a prop with no matching
+// tile in the map would hang the whole load. Capped at 4096 tries so a bad
+// map can never wedge the parse; failures land at tile (0,0) and are counted
+// in this.placeFailures.
+    for (let tries = 0; tries < 4096; tries++) {
+      const tx = this.randomBetween(0, this.mapW, this.a);
+      const ty = this.randomBetween(0, this.mapH, this.a);
+      if (!this.canPlaceEntity(tx, ty, paramInt) || this.isAdjacentPos(this.d, this.e, tx, ty)) continue;
+      this.entX[paramInt] = tx;
+      this.entY[paramInt] = ty;
+      this.entPX[paramInt] = tx;
+      this.entPY[paramInt] = ty;
+      return;
+    } 
+    this.placeFailures = (this.placeFailures || 0) + 1;
+  }
+  
   loadTileData() {
 // [dbg removed]
     try {
@@ -569,20 +647,141 @@ export class i extends Screen {
       const tileCount = this.mapW * this.mapH;
       this.tileData = new Int16Array(tileCount);
       this.tileFlags = new Uint8Array(tileCount);
+      let count01 = 0;
+      let count24 = 0;
       for (let i = 0; i < tileCount; i++) {
         this.tileData[i] = (data[off++] << 8) | (data[off++] & 0xFF);
+        const cls = (this.tileData[i] & 0xE000) >> 13;
+        if (cls === 1 || cls === 0) {
+          count01++;
+        } else if (cls === 2 || cls === 4) {
+          count24++;
+        } 
       }
-      const entityCount = data[off++] & 0xFF;
-      this.entityDefs = [];
-      for (let i = 0; i < entityCount; i++) {
-        const hi = (data[off] & 0xFF) >> 4;
-        const lo = data[off] & 0x0F;
-        off++;
-        const hi2 = (data[off] & 0xFF) >> 4;
-        const lo2 = data[off] & 0x0F;
-        off++;
-        this.entityDefs.push({ tx: hi, ty: lo, tx2: hi2, ty2: lo2 });
+// Java i.java:7666-7672 — the pool of class-0/1 tile indices the spawn
+// relocation samples from. Kept as its own array because the Java name 'x'
+// collides with the 130-slot this.x from another inner class.
+      this.class01Count = count01;
+      this.class24Count = count24;
+      this.class01Index = new Int16Array(count01);
+      let w = 0;
+      for (let i = 0; i < tileCount; i++) {
+        const cls = (this.tileData[i] & 0xE000) >> 13;
+        if (cls === 1 || cls === 0) this.class01Index[w++] = i;
+      } 
+// Java i.loadTileData:7636 assigns the tile grid to static field 's'. The render
+// path (tileFieldBits, i.js:2107) reads this.s, so the grid must be published
+// under that name too; the Java code that later rebinds 's' to the record
+// table was never ported, so there is no conflict here. The companion 'g'
+// flags array is NOT aliased here: this.g is reused as a boolean/number by
+// several update paths, so binding it would be clobbered immediately.
+      this.s = this.tileData;
+// Java i.loadTileData:7687-7806 — the tail of resource 63. The decompiler gives
+// these eight parallel arrays the single-letter names a/i/j/k/l/m/n/o/h, but
+// those names are taken in this port (this.i is the GAME-STATE counter, this.h
+// the global facing, this.j/this.k/this.l/this.m/this.n/this.o are scalars
+// elsewhere), so they are bound under descriptive names instead. Nothing here
+// is wired into the renderer yet: entitySprite/entityFacing are read by
+// methods that still index the old colliding names.
+      const propCount = data[off++] & 0xFF;
+      const entSlots = propCount + 15;
+      this.entAlive = new Array(entSlots).fill(false);
+      this.entX = new Int8Array(entSlots);
+      this.entY = new Int8Array(entSlots);
+      this.entPX = new Int8Array(entSlots);
+      this.entPY = new Int8Array(entSlots);
+      this.entM = new Int8Array(entSlots);
+      this.entN = new Int8Array(entSlots);
+      this.entSprite = new Int8Array(entSlots);
+      this.entFacing = new Int8Array(entSlots);
+      for (let i = 0; i < propCount; i++) {
+// Java i.java:7697-7704: 'o' (the sprite/layer id compared against the tile
+// bits by canPlaceEntity) takes the HIGH nibble and 'h' the LOW nibble.
+        this.entSprite[i] = (data[off] & 0xFF) >> 4;
+        this.entFacing[i] = data[off++] & 0x0F;
+        this.entM[i] = (data[off] & 0xFF) >> 4;
+        this.entN[i] = data[off++] & 0x0F;
+        this.entAlive[i] = true;
+        this.placeEntity(i);
       }
+// Java i.java:7705-7731 — the 3-byte node records (r/s/t). kind 7 marks the
+// portal coords, kind 2 the start index, kind 1 the entries the start list
+// links to (u[]=1 when they sit on the portal).
+      const nodeCount = data[off++] & 0xFF;
+      this.nodeKind = new Int8Array(nodeCount);
+      this.nodeX = new Int8Array(nodeCount);
+      this.nodeY = new Int8Array(nodeCount);
+      this.nodeLink = new Int8Array(nodeCount);
+      let portalX = -1;
+      let portalY = -1;
+      let startCount = 0;
+      this.nodeStart = -1;
+      for (let i = 0; i < nodeCount; i++) {
+        this.nodeKind[i] = data[off++];
+        this.nodeX[i] = data[off++];
+        this.nodeY[i] = data[off++];
+        this.nodeLink[i] = 0;
+        if (this.nodeKind[i] === 7) {
+          portalX = this.nodeX[i];
+          portalY = this.nodeY[i];
+        } else if (this.nodeKind[i] === 2) {
+          this.nodeStart = i;
+        } else if (this.nodeKind[i] === 1) {
+          startCount++;
+        } 
+      }
+      this.nodeStartList = new Int16Array(startCount).fill(-1);
+      for (let i = 0; i < nodeCount; i++) {
+        if (this.nodeKind[i] === 1 && this.nodeX[i] === portalX && this.nodeY[i] === portalY)
+          this.nodeLink[i] = 1;
+      }
+// Java i.java:7732-7752 — the 3-byte spawn records (w/x/y). A spawn on a
+// walkable-but-unused tile (tileFieldBits(..,13,57344) is 0 or 1) is moved onto
+// a random class-0/1 tile, consuming that tile from the pool.
+      const spawnCount = data[off++] & 0xFF;
+      this.spawnW = new Int8Array(spawnCount);
+      this.spawnX = new Int8Array(spawnCount);
+      this.spawnY = new Int8Array(spawnCount);
+      this.spawnZ = new Int8Array(spawnCount);
+      for (let i = 0; i < spawnCount; i++) {
+        this.spawnW[i] = data[off++];
+        this.spawnX[i] = data[off++];
+        this.spawnY[i] = data[off++];
+        this.spawnZ[i] = 1;
+        const bits = this.tileFieldBits(this.spawnX[i], this.spawnY[i], 13, 57344);
+        if (bits === 0 || bits === 1) {
+// Same hazard as placeEntity: the Java loops until it finds an unconsumed
+// class-0/1 tile, which deadlocks once the pool runs dry. Bounded instead.
+          let moved = false;
+          for (let tries = 0; tries < 4096; tries++) {
+            const pick = this.randomBetween(0, this.class01Count - 1, this.a);
+            if (this.class01Index[pick] !== -1) {
+              this.spawnX[i] = this.class01Index[pick] % this.mapW;
+              this.spawnY[i] = this.class01Index[pick] / this.mapW;
+              this.class01Index[pick] = -1;
+              moved = true;
+              break;
+            } 
+          } 
+          if (!moved) this.spawnMisses = (this.spawnMisses || 0) + 1;
+        } 
+      }
+// Java i.java:7753-7766 — G groups x 8 directions x (F*3) bytes of frame data.
+      const groups = data[off++] & 0xFF;
+      const frames = data[off++] & 0xFF;
+      this.animGroups = groups;
+      this.animFrames = frames;
+      this.frameData = new Uint8Array(8 * groups * frames * 3);
+      if (groups > 0) {
+        let f = 0;
+        for (let g = 0; g < groups; g++) {
+          for (let dir = 0; dir < 8; dir++) {
+            for (let k = 0; k < frames * 3; k++)
+              this.frameData[f++] = data[off++];
+          } 
+        } 
+      }
+      this.ckConsumed = off;
 // [dbg removed]
     } catch (_e) {
       console.warn('[i.js] loadTileData error:', _e.message);
@@ -590,13 +789,12 @@ export class i extends Screen {
   }
 
   loadWorldData() {
-    try {
-      const data = cRes.getResource(64);
-      if (!data) return;
-// [dbg removed]
-    } catch (_e) {
-      console.warn('[i.js] loadWorldData error:', _e.message);
-    }
+// [dead stub] No-op. The Java originally read resource 64 here, but assets/h
+// only defines ids 0..63, so cRes.getResource(64) is always null and the old
+// body could only ever hit the `if (!data) return;` bail. The real world state
+// is restored from the save record by the caller (h.js startOrResumeGame),
+// not from a packaged resource, so this stays an intentional no-op rather
+// than reading a missing resource.
   }
 
   playClickSound(isResume) {
@@ -650,15 +848,15 @@ export class i extends Screen {
     }
   }
 
-  c(paramInt) {
+  advanceTimers(paramInt) {
     if (this.an) return;
     this.z = false;
     if (this.F !== 0) {
       if (this.E === 0 && this.u === 0) {
         this.bSub(true);
       } else if (this.u !== 0) {
-        this.k();
-        this.w();
+        this.calcAmbientByHour();
+        this.writeSaveRecord();
         this.F = 0;
         this.u = 0;
         this.bSub(false);
@@ -677,7 +875,7 @@ export class i extends Screen {
         if (bool) {
           this.bSub(true);
         } else {
-          this.x();
+          this.legacyX0();
         }
       } else if (this.w === true) {
         this.T += paramInt;
@@ -696,55 +894,55 @@ export class i extends Screen {
 
     if (paramInt <= 0) paramInt = 1;
     this.aSeed += paramInt;
-    this.e(paramInt);
-    this.aInt(paramInt);
-    this.jStep();
+    this.spriteRowForId(paramInt);
+    this.itemSpriteBase(paramInt);
+    this.updateEntities();
     if (this.r !== null && this.l === null) {
       this.z[this.q] = 2;
-      let arrayOfString = this.aValue(this.w[this.q], 1);
+      let arrayOfString = this.addItemToInventory(this.w[this.q], 1);
       this.r = false;
-      this.aCall(79, arrayOfString, this.aValue(this.w[this.q]));
+      this.showMessageDialog(79, arrayOfString, this.itemSpriteBase(this.w[this.q]));
     }
 
     if (!this.j && !this.g) {
       this.g = true;
       this.bStep(false, null);
       this.bStep(true, this.a);
-      this.tInit();
+      this.tickPortalEffects();
     } else if (this.z !== null) {
       this.bStep(true, this.a);
     }
 
-    this.aCall(true, this.a);
+    this.handleEntityPrompt(true, this.a);
     if (this.r !== -1) {
-      if (typeof this.d === 'function') this.d();
+      if (typeof this.d === 'function') this.setFlagAn();
       if (typeof this.h === 'object' && this.h !== null) this.h.b = this.r;
-      if (this.r === 8 && typeof this.y === 'function') this.y();
+      if (this.r === 8 && typeof this.y === 'function') this.clearEntityViews();
       this.m?.a?.(18, this);
       return;
     }
 
     if (this.G !== null) {
-      if (this.w === true) this.x();
+      if (this.w === true) this.legacyX0();
     } else {
-      this.x();
+      this.legacyX0();
     }
 
-    this.x(paramInt);
+    this.legacyX1(paramInt);
     this.M += paramInt;
     if (this.M > 300) {
       this.M = false;
       for (let i = 0; i < this.u.length; i++) {
-        if (this.d[i] !== 0 && this.aRandom(0, 100, this.a) < 20) {
+        if (this.d[i] !== 0 && this.randomInt(0, 100, this.a) < 20) {
           this.d[i] = 0;
-        } else if (this.d[i] === 0 && this.aRandom(0, 100, this.a) < 8) {
+        } else if (this.d[i] === 0 && this.randomInt(0, 100, this.a) < 8) {
           this.d[i] = 1;
         }
       }
     }
 
     this.hero.e();
-    this.y(paramInt);
+    this.advanceFrameCounter(paramInt);
     if (this.C <= 20) {
       this.L += paramInt;
       if (this.L > 250) {
@@ -757,7 +955,7 @@ export class i extends Screen {
     }
   }
 
-  static aInt(paramInt) {
+  static itemSpriteBase(paramInt) { /* aInt */
     switch (paramInt) {
       case 6: return 42;
       case 15: return 54;
@@ -786,43 +984,81 @@ export class i extends Screen {
     }
   }
 
-  static aBooleanGraphics(paramBoolean, paramGraphics) {
+  static handleEntityPrompt(paramBoolean, paramGraphics) { /* aBooleanGraphics */
     if (this.m === -1) return;
-    if (!this.m && this.f === 0) {
-      if (paramBoolean) this.aCall(60, null, -1);
-    } else if (this.m === 3 && this.f === 0) {
+    if (!this.m && this.fFlag === 0) {
+      if (paramBoolean) this.showMessageDialog(60, null, -1);
+    } else if (this.m === 3 && this.fFlag === 0) {
       if (paramBoolean) {
-        this.aCall(8, 1);
-        this.aCall(61, null, 32);
+        this.removeItemFromInventory(8, 1);
+        this.showMessageDialog(61, null, 32);
       }
-    } else if (this.m === 4 && this.f === 0) {
+    } else if (this.m === 4 && this.fFlag === 0) {
       if (paramBoolean) {
         this.C[3] = 104;
-        this.aCall(62, null, 75);
+        this.showMessageDialog(62, null, 75);
       }
+      if (paramGraphics != null) {
+        const camX = Math.max(0, Math.min(this.d - 2, this.b - 5));
+        const camY = Math.max(0, Math.min(this.e - 2, this.mapH - 5));
+        cRes.drawSprite(this.C[3], (this.d - camX) * 9 + 4, (this.e - 1 - camY) * 9 + 4, paramGraphics);
+      }
+    } else if (this.m === 4 && this.e === this.mapH - 5) {
+      if (paramBoolean) this.C[3] = 104;
+      if (paramGraphics != null) {
+        const camX = Math.max(0, Math.min(this.d - 2, this.b - 5));
+        const camY = Math.max(0, Math.min(this.e - 2, this.mapH - 5));
+        cRes.drawSprite(this.C[3], (this.d - camX) * 9 + 4, (this.e - 1 - camY) * 9 + 4, paramGraphics);
+      }
+    } else if (this.m === 5 && this.fFlag === 0) {
+      if (paramBoolean) {
+        this.showMessageDialog(63, null, 33);
+        this.showMessageDialog(64, null, 32);
+        this.showMessageDialog(65, null, 33);
+        this.showMessageDialog(66, null, 32);
+        this.showMessageDialog(67, null, 33);
+      }
+    } else if (this.m === 6 && this.fFlag === 0) {
+      if (paramBoolean) {
+        this.addItemToInventory(19, 3);
+        this.B = 5;
+        this.j = true;
+        this.k = true;
+        this.l = false;
+        if (this.p && this.p.length) { for (let b = 0; b < this.p.length; b++) this.p[b] = 0; }
+        if (this.q && this.q.length) { for (let b = 0; b < this.q.length; b++) this.q[b] = 0; }
+        this.l = true;
+        this.resetDialogScroll();
+        this.playSound(61);
+      }
+    } else if (this.m === 8 && this.fFlag === 0 && paramBoolean) {
+      if (this.findNodeAt(this.d, this.e, 1, 1)) this.registerPortalEffect(this.f[0], 0);
+      this.F = 1;
+      this.m = true;
     }
+    if (paramBoolean) this.fFlag = 1;
   }
-
-  static aStep(paramInt) {
+  
+  static updatePlacementState(paramInt) { /* aStep */
     if (this.oVal !== 0 && this.D > 0 && this.D < 600) {
-      this.y();
-      this.q();
+      this.clearEntityViews();
+      this.updatePickups();
       return;
     }
   }
 
-  static eUpdate(paramInt) {
-    if (!this.aCheck()) {
+  static updateAmbientParticles(paramInt) { /* eUpdate */
+    if (!this.isDaytime()) {
       if (this.rVal === -1) {
         this.sVal += paramInt;
         if (this.sVal >= 41) {
-          if (this.aRandom(0, 1000, this.a) <= 50) {
+          if (this.randomInt(0, 1000, this.a) <= 50) {
             this.rVal = false;
-            this.nVal = this.aRandom(26, 31, this.a);
-            if (this.aRandom(0, 100, this.a) <= 50) this.nVal = -this.nVal;
-            this.oVal = this.aRandom(0, 5, this.a) + 3;
-            this.pVal = this.aRandom(0, 45056, this.a);
-            this.qVal = this.aRandom(0, this.H << 8 >> 1, this.a);
+            this.nVal = this.randomInt(26, 31, this.a);
+            if (this.randomInt(0, 100, this.a) <= 50) this.nVal = -this.nVal;
+            this.oVal = this.randomInt(0, 5, this.a) + 3;
+            this.pVal = this.randomInt(0, 45056, this.a);
+            this.qVal = this.randomInt(0, this.H << 8 >> 1, this.a);
           }
           this.sVal = false;
           return;
@@ -842,28 +1078,28 @@ export class i extends Screen {
     }
   }
 
-  static iCheck() {
+  static handleTileAction() { /* iCheck */
     if (this.l !== null) {
-      let j = this.aValue(this.d, this.e, 0, 7);
+      let j = this.readTileBits(this.d, this.e, 0, 7);
       switch (this.h[j]) {
         case false:
         case true:
-          if (this.aCheck() && (j === 0 || j === 3)) {
+          if (this.isDaytime() && (j === 0 || j === 3)) {
             if (this.C === 0) {
               if (!this.h[j] && this.A === 0) {
-                this.aCall(170, null, -1);
+                this.showMessageDialog(170, null, -1);
                 this.A = 1;
               } else if (this.h[j] === 4 && this.B === 0) {
-                this.aCall(171, null, 36);
+                this.showMessageDialog(171, null, 36);
                 this.B = 1;
               }
             }
-            this.v(61);
-            this.m();
+            this.playSound(61);
+            this.resetDialogScroll();
             return;
           }
           if (this.e === 0) {
-            this.aCall(111, null, 32);
+            this.showMessageDialog(111, null, 32);
             return;
           }
           break;
@@ -878,7 +1114,7 @@ export class i extends Screen {
               }
             }
             if (bool) {
-              this.aCall(100, 100, false);
+              this._calcHealth(100, 100, false);
               return;
             }
           }
@@ -887,7 +1123,7 @@ export class i extends Screen {
     }
   }
   
-  static jStep() {
+  static updateEntities() { /* jStep */
     if (this.F !== 0 || this.t !== null || this.C <= 0 || this.y !== null || this.x !== null || this.m === 5 || (this.m === 6 && this.l === null) || this.m === 7 || this.m === 8) {
       this._dbgStep = 'gate F' + this.F + '/t' + (this.t !== null) + '/C' + this.C + '/y' + (this.y !== null) + '/x' + (this.x !== null) + '/m' + this.m + '/l' + (this.l !== null);
       return;
@@ -949,23 +1185,23 @@ export class i extends Screen {
         if (_Jact) dbgR('J', { h: this.h, b1, tgt: [b2, b3], flags: [this.bCam[0] !== null, this.bCam[1] !== null, this.bCam[2] !== null, this.bCam[3] !== null] });
         if (b2 === 27 && b3 === 39 && this.aCam !== null && this.bCam !== null && this.C !== 0) {
           this.x = true;
-          this.v();
+          this.calcScore();
           this.hero.a();
           this.r = 7;
         } else if (b3 < 0 || b3 >= this.mapH) {
           this._dbgStep = 'edge(' + b2 + ',' + b3 + ',H=' + this.mapH + ',h=' + this.h + ')';
-          dbgR('jStep edge', { b2, b3, H: this.mapH, C: this.C, h: this.h });
+          dbgR('updateEntities edge', { b2, b3, H: this.mapH, C: this.C, h: this.h });
           if (this.C !== 0) {
-            this.a(211, null, -1);
+            this.showMessageDialog(211, null, -1);
           } else {
-            this.a(165, null, 32);
+            this.showMessageDialog(165, null, 32);
           }
         }
         if ((b2 !== this.d || b3 !== this.e) && this.bCheck(b2, b3)) {
           this._dbgStep = 'move(' + b2 + ',' + b3 + ',h=' + this.h + ')';
-          dbgR('jStep move', { from: [this.d, this.e], to: [b2, b3], h: this.h, d: this.D });
+          dbgR('updateEntities move', { from: [this.d, this.e], to: [b2, b3], h: this.h, d: this.D });
           this.hero.d();
-          if (this.A !== 0 && this.aTile(b2, b3, 0, 7) !== 7) {
+          if (this.A !== 0 && this.readTileBits(b2, b3, 0, 7) !== 7) {
             for (let i = 0; i < this.aCam.g; i++) {
               this.p[i] = 0;
               this.q[i] = 0;
@@ -975,36 +1211,36 @@ export class i extends Screen {
             this.X = 0;
           }
           if (this.e !== 0) {
-            let j = this.aTile(b2, b3, 0, 7);
-            let k = this.aTile(b2, b3, 13, 57344);
+            let j = this.readTileBits(b2, b3, 0, 7);
+            let k = this.readTileBits(b2, b3, 13, 57344);
             if ((j === 3 || j === 0) && k === 3) {
-              this.f = this.d;
+              this.prevX = this.d;
               this.g = this.e;
               this.d = b2;
               this.e = b3;
-              this.uStep(1);
+              this.updateWeatherParticles(1);
               this.s[this.S] = this.d;
               this.t[this.S] = this.e;
               this.g = false;
-              this.uStep(1);
+              this.updateWeatherParticles(1);
               this.n();
               this.bPaint(null);
               return;
             }
-            this.a(116, null, 32);
+            this.showMessageDialog(116, null, 32);
           } else {
             this.c = false;
             this.d = 0;
             this.r = -1;
-            this.f = this.d;
+            this.prevX = this.d;
             this.g = this.e;
             this.d = b2;
             this.e = b3;
-            this.uStep(1);
+            this.updateWeatherParticles(1);
             if (this.J === 0 && this.m === -1) {
               this.J = 1;
               this.v = true;
-              this.a(72, null, 86);
+              this.showMessageDialog(72, null, 86);
             }
             if (this.I !== 0 && this.D === 0) {
               this.D = 1;
@@ -1020,37 +1256,37 @@ export class i extends Screen {
               }
             }
             let j;
-            if ((j = this.aTile(this.d, this.e, 13, 57344)) === 2 || j === 4) {
+            if ((j = this.readTileBits(this.d, this.e, 13, 57344)) === 2 || j === 4) {
               if (!this.M) {
-                this.a(75, null, 32);
+                this.showMessageDialog(75, null, 32);
                 this.M = true;
               }
               if (this.bTile(this.d, this.e, 20) || j === 4) {
                 for (let i = 0; i < this.w.length; i++) {
                   if (this.z[i] === 2 && this.w[i] === 20) {
-                    this.iAction(16);
+                    this.selectItemSlot(16);
                     break;
                   }
                 }
                 if (j === 4 && this.L === 0) {
-                  this.a(148, null, 32);
+                  this.showMessageDialog(148, null, 32);
                   this.L = 1;
                 }
-                this.a(76, null, 32);
+                this.showMessageDialog(76, null, 32);
               } else {
-                this.a(77, null, 32);
+                this.showMessageDialog(77, null, 32);
               }
             }
             if (this.m !== -1 && this.U > this.e) {
               this.U = this.e;
               this.m += 1;
-              this.f = 0;
+              this.fFlag = 0;
             }
             this.g = false;
-            this.uStep(1);
-            this.fUpdate(1);
+            this.updateWeatherParticles(1);
+            this.updateEntityTimers(1);
             if (this.m === -1) {
-              this.aFunc(this.f, this.g);
+              this.aFunc(this.prevX, this.g);
               this.jAction(1);
               this.rAction();
               this.sAction();
@@ -1063,14 +1299,14 @@ export class i extends Screen {
             this.bPaint(null);
             if (this.w === null && this.N + 48 <= this.z && this.t === null && this.r === null && this.C === 0) {
               this.w = true;
-              this.a(230, null, 58);
+              this.showMessageDialog(230, null, 58);
             }
             return;
           }
         } else if (b1 !== this.h) {
           this._dbgStep = 'turn->' + b1 + '(h' + this.h + ')';
           this.hero.d();
-          if (this.A !== 0 && this.aTile(b2, b3, 0, 7) !== 7) {
+          if (this.A !== 0 && this.readTileBits(b2, b3, 0, 7) !== 7) {
             for (let i = 0; i < this.aCam.g; i++) {
               this.p[i] = 0;
               this.q[i] = 0;
@@ -1090,18 +1326,18 @@ export class i extends Screen {
         this.bCam[4] = null;
         let b = this.A[this.o * 2 + 1];
         let j = this.o * 2;
-        let k = this.aTile(this.d, this.e, 13, 57344);
+        let k = this.readTileBits(this.d, this.e, 13, 57344);
         if (this.h) {
           this.h = false;
-        } else if (this.o === this.p && (this.l === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && this.m === -1 && this.aTile(this.d, this.e, 0, 7) !== 7) {
+        } else if (this.o === this.p && (this.l === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && this.m === -1 && this.readTileBits(this.d, this.e, 0, 7) !== 7) {
           if (this.C !== 0) {
-            this.a(224, null, -1);
+            this.showMessageDialog(224, null, -1);
           } else if ((k === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && !this.aTileCheck(this.d, this.e, 5)) {
-            this.a(95, null, 32);
+            this.showMessageDialog(95, null, 32);
             this.F = 1;
             this.u = 0;
           } else {
-            this.a(203, null, 32);
+            this.showMessageDialog(203, null, 32);
           }
         }
       }
@@ -1137,7 +1373,7 @@ export class i extends Screen {
     }
   }
 
-  static bValue(paramInt) {
+  static itemFrameId(paramInt) { /* bValue */
     switch (paramInt) {
       case 201: return 44;
       case 104: return 34;
@@ -1151,7 +1387,7 @@ export class i extends Screen {
     }
   }
 
-  static cValue(paramInt) {
+  static calcItemEffect(paramInt) { /* cValue */
     let j;
     let bool;
     let b = 1;
@@ -1159,9 +1395,9 @@ export class i extends Screen {
     switch (paramInt) {
       case 25:
         bool = false;
-        j = this.aTile(this.d, this.e, 0, 7);
+        j = this.readTileBits(this.d, this.e, 0, 7);
         if (j === 4 || j === 1 || j === 5 || j === 2) bool = true;
-        if (this.aCheck()) {
+        if (this.isDaytime()) {
           b = 2;
           if (bool) b += 1;
         } else {
@@ -1170,8 +1406,8 @@ export class i extends Screen {
         }
         return b;
       case 22:
-        if (this.aCheck()) b += 1;
-        j = this.aTile(this.d, this.e, 0, 7);
+        if (this.isDaytime()) b += 1;
+        j = this.readTileBits(this.d, this.e, 0, 7);
         if (this.m === -1 && (j === 3 || j === 0)) b += 1;
         return b;
       default:
@@ -1183,7 +1419,7 @@ export class i extends Screen {
     return true;
   }
 
-  static c(paramInt) {
+  static passableForItem(paramInt) {
     let j;
     let bool;
     let b = 1;
@@ -1191,9 +1427,9 @@ export class i extends Screen {
     switch (paramInt) {
       case 25:
         bool = false;
-        j = this.aTile(this.d, this.e, 0, 7);
+        j = this.readTileBits(this.d, this.e, 0, 7);
         if (j === 4 || j === 1 || j === 5 || j === 2) bool = true;
-        if (this.aCheck()) {
+        if (this.isDaytime()) {
           b = 2;
           if (bool) b += 1;
         } else {
@@ -1202,14 +1438,14 @@ export class i extends Screen {
         }
         return b;
       case 22:
-        if (this.aCheck()) b += 1;
-        j = this.aTile(this.d, this.e, 0, 7);
+        if (this.isDaytime()) b += 1;
+        j = this.readTileBits(this.d, this.e, 0, 7);
         if (this.m === -1 && (j === 3 || j === 0)) b += 1;
         return b;
       case 2:
         b += 1;
-        if (this.aCheck()) b += 1;
-        j = this.aTile(this.d, this.e, 0, 7);
+        if (this.isDaytime()) b += 1;
+        j = this.readTileBits(this.d, this.e, 0, 7);
         if (j === 3 || j === 0) b += 2;
         return b;
       case 8:
@@ -1217,20 +1453,20 @@ export class i extends Screen {
         return b;
       case 1:
         b += 1;
-        j = this.aTile(this.d, this.e, 0, 7);
+        j = this.readTileBits(this.d, this.e, 0, 7);
         if (j === 4 || j === 1 || j === 5 || j === 2) b += 1;
-        if (!this.aCheck()) b += 1;
+        if (!this.isDaytime()) b += 1;
         return b;
       default:
         return 0;
     }
   }
 
-  static bAction() {
+  static canActivateItem() { /* bAction */
     let b = this.A[this.o * 2 + 1];
     let j = this.o * 2;
-    let k = this.aTile(this.d, this.e, 13, 57344);
-    if (this.o === this.p && (this.l === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && this.m === -1 && this.aTile(this.d, this.e, 0, 7) !== 7) {
+    let k = this.readTileBits(this.d, this.e, 13, 57344);
+    if (this.o === this.p && (this.l === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && this.m === -1 && this.readTileBits(this.d, this.e, 0, 7) !== 7) {
       return this.C !== 0 ? false : (((k === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && !this.aTileCheck(this.d, this.e, 5)));
     }
     if (this.e === 0 || this.A[j] === 4 || this.A[j] === 3 || this.A[j] === 6 || this.A[j] === 9 || this.A[j] === 5) {
@@ -1288,7 +1524,7 @@ export class i extends Screen {
     return false;
   }
 
-  static k() {
+  static calcAmbientByHour() {
     let j = 0;
     if (this.i < 6) {
       j = 6 - this.i;
@@ -1297,7 +1533,7 @@ export class i extends Screen {
     }
     if (j > 8) j = 8;
     this.jValue(j);
-    let k = this.aTile(this.d, this.e, 13, 57344);
+    let k = this.readTileBits(this.d, this.e, 13, 57344);
     let m = j;
     this.o = 0;
     if (this.e !== 0) {
@@ -1312,10 +1548,10 @@ export class i extends Screen {
     this.gainEnergy(m);
     let b;
     for (b = 0; b < this.h.length; b++) {
-      if (this.o[b] === this.aTile(this.d, this.e, 9, 7680) && this.h[b] === 5) this.mAction(b);
+      if (this.o[b] === this.readTileBits(this.d, this.e, 9, 7680) && this.h[b] === 5) this.mAction(b);
     }
     this.uAction(j);
-    this.fUpdate(j);
+    this.updateEntityTimers(j);
     this.sAction();
     for (b = 0; b < this.h.length; b++) {
       if (this.h[b] !== 4 && this.h[b] !== 5) {
@@ -1328,11 +1564,11 @@ export class i extends Screen {
     this.bPaint(null);
     if (this.C === 0) {
       let arrayOfString = [String(j)];
-      this.a(71, arrayOfString, -1);
+      this.showMessageDialog(71, arrayOfString, -1);
     }
   }
 
-  static fUpdate(paramInt) {
+  static updateEntityTimers(paramInt) { /* fUpdate */
     for (let b = 0; b < this.r.length; b++) {
       if ((this.r[b] === 1 || this.r[b] === 3) && this.u[b] === 1 && (this.s[b] !== this.y || this.t[b] !== this.z)) {
         this.v[b] = (this.v[b] - paramInt);
@@ -1341,9 +1577,9 @@ export class i extends Screen {
     }
   }
 
-  static aByte(paramByte1, paramByte2) {
-    if (this.C !== 0 && !this.aCheck()) return;
-    let j = this.aTile(paramByte1, paramByte2, 0, 7);
+  static harvestTile(paramByte1, paramByte2) { /* aByte */
+    if (this.C !== 0 && !this.isDaytime()) return;
+    let j = this.readTileBits(paramByte1, paramByte2, 0, 7);
     let k = 0;
     if (j === 1 || j === 2 || j === 4 || j === 5) k += 1;
     if (j === 3 || j === 4 || j === 5) {
@@ -1351,8 +1587,8 @@ export class i extends Screen {
     } else if (j === 7) {
       k += 6;
     }
-    if (!this.aCheck()) k *= 2;
-    this.aAction(k, k, true);
+    if (!this.isDaytime()) k *= 2;
+    this.grantRandomLoot(k, k, true);
   }
 
   static gainEnergy(paramInt) {
@@ -1360,7 +1596,7 @@ export class i extends Screen {
     if (this.C > 100) this.C = 100;
   }
 
-  static aTile(paramByte1, paramByte2, paramInt1, paramInt2) {
+  static readTileBits(paramByte1, paramByte2, paramInt1, paramInt2) { /* aTile */
     if (!this.tileData) return 0;
     const x = paramByte1;
     const y = paramByte2;
@@ -1398,22 +1634,70 @@ export class i extends Screen {
     return false;
   }
 
-  static bTileMatch(paramByte1, paramByte2, paramInt) {
+  static isEntityAtTile(paramByte1, paramByte2, paramInt) { /* bTileMatch */
     for (let b = 0; b < this.w.length; b++) {
       if (this.x[b] === paramByte1 && this.y[b] === paramByte2 && this.w[b] === paramInt && this.z[b] !== 2) return true;
     }
     return false;
   }
 
-  static l() {
-    let j = this.a(this.d, this.e, 0, 7);
-    if (this.l === null && (j === 1 || j === 2 || j === 4 || j === 5) && this.a(0, 100, this.a) <= 10 && this.C === 0) {
-      let arrayOfString = this.a(12, 1);
-      this.a(79, arrayOfString, this.a(12));
+  static findNodeAt(paramByte1, paramByte2, paramInt1, paramInt2) { /* b(byte,byte,int,int) */
+    if (!this.nodeLink) return false;
+    for (let i = 0; i < this.nodeLink.length; i++) {
+      if (this.nodeX[i] === paramByte1 && this.nodeY[i] === paramByte2 && this.nodeKind[i] === paramInt1 && this.nodeLink[i] === paramInt2) {
+        this.f[0] = i;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static registerPortalEffect(paramInt1, paramInt2) { /* d(int,int) */
+    if (paramInt2 === 0) {
+      for (let i = 0; i < this.fxN.length; i++) {
+        if (this.fxN[i] === paramInt1) { this.fxD[i] = 2; return true; }
+      }
+      for (let i = 0; i < this.fxN.length; i++) {
+        if (this.fxN[i] === -1) { this.fxN[i] = paramInt1; this.fxD[i] = 2; return false; }
+      }
+    } else if (paramInt2 === 2) {
+      for (let i = 0; i < this.fxO.length; i++) {
+        if (this.fxO[i] === paramInt1) { this.fxE[i] = 2; return true; }
+      }
+      for (let i = 0; i < this.fxO.length; i++) {
+        if (this.fxO[i] === -1) { this.fxO[i] = paramInt1; this.fxE[i] = 2; return false; }
+      }
+    }
+    return false;
+  }
+
+  static tickPortalEffects() { /* t() */
+    for (let i = 0; i < this.fxD.length; i++) {
+      if (this.fxD[i] > 0) {
+        this.fxD[i] = (this.fxD[i] - 1);
+        if (this.fxD[i] === 0) {
+          if (this.nodeX[this.fxN[i]] === this.d && this.nodeY[this.fxN[i]] === this.e) {
+            this.fxD[i] = 1;
+          } else {
+            this.fxN[i] = -1;
+          }
+        }
+      }
+    }
+// Java's second registry (o[]/E[]) ticks identically but indexes a coordinate
+// pair the decompiler labels i[]/j[] (byte[]), never allocated here — those
+// letters are scalars elsewhere. Skipped until that table is identified.
+  }
+
+  static maybeShowTileHint() {
+    let j = this.tileFieldBits(this.d, this.e, 0, 7);
+    if (this.l === null && (j === 1 || j === 2 || j === 4 || j === 5) && this.randomBetween(0, 100, this.a) <= 10 && this.C === 0) {
+      let arrayOfString = this.addItemToInventory(12, 1);
+      this.showMessageDialog(79, arrayOfString, this.playSound(12));
     }
   }
 
-  static h(paramInt) {
+  static advanceCursor(paramInt) {
     this.o = (this.o + paramInt);
     if (this.o > this.p) {
       this.o = 0;
@@ -1422,7 +1706,7 @@ export class i extends Screen {
     if (this.o < 0) this.o = this.p;
   }
 
-  static m() {
+  static resetDialogScroll() {
     this.j = true;
     this.o = 0;
     if ((this.o < (this.v / 2) || this.o === this.p) && this.B !== 5) {
@@ -1430,13 +1714,13 @@ export class i extends Screen {
         this.o = (this.v / 2);
         return;
       }
-      this.i(25);
+      this.selectItemSlot(25);
       return;
     }
-    if (this.B === 5) this.i(19);
+    if (this.B === 5) this.selectItemSlot(19);
   }
 
-  static i(paramInt) {
+  static selectItemSlot(paramInt) { /* i */
     for (let b = 0; b < this.A.length; b += 2) {
       if (this.A[b] === paramInt) {
         this.o = (b / 2);
@@ -1455,7 +1739,7 @@ export class i extends Screen {
     let bool1 = false;
     let bool2 = false;
     let j;
-    if ((j = this.a(this.d, this.e, 13, 57344)) === 0 || j === 1) {
+    if ((j = this.tileFieldBits(this.d, this.e, 13, 57344)) === 0 || j === 1) {
       bool1 = true;
     } else if (j === 2 || j === 4) {
       bool2 = true;
@@ -1463,7 +1747,7 @@ export class i extends Screen {
     if (this.c === null) {
       for (let b = 0; b < this.h.length; b++) {
         if (this.i[b] === this.d && this.j[b] === this.e && this.aCam[b] !== null) {
-          if (this.h[b] === 4 && !this.a()) break;
+          if (this.h[b] === 4 && !this.isDaytime()) break;
           this.B = this.h[b];
           j = b;
           this.k = this.m[b];
@@ -1473,18 +1757,18 @@ export class i extends Screen {
           for (b1 = 0; b1 < this.q.length; b1++) this.q[b1] = 0;
           this.l = true;
           if ((this.B === 6 || this.B === 7) && this.e === 0 && this.A[this.o * 2] !== 1) {
-            this.i(8);
+            this.selectItemSlot(8);
             return;
           }
           if (this.B === 4) {
             if (this.U === 0) this.U = 1;
             if (!this.ae && this.h.e !== 0) {
-              this.a(193, null, -1);
+              this.showMessageDialog(193, null, -1);
               this.ae = true;
               return;
             }
           } else if ((this.B === 1 || this.B === 2 || this.B === 3) && !this.ag && this.h.e !== 0) {
-            this.a(195, null, -1);
+            this.showMessageDialog(195, null, -1);
             this.ag = true;
           }
           return;
@@ -1500,43 +1784,43 @@ export class i extends Screen {
           this.m = true;
           if (this.r[b] === 4 && this.C === 0) {
             if (this.I !== 0 && this.H !== 0) {
-              this.a(166, null, 32);
+              this.showMessageDialog(166, null, 32);
               this.y = true;
             } else if (this.I === 0) {
-              this.a(120, null, 32);
-              this.tMsg();
+              this.showMessageDialog(120, null, 32);
+              this.queueMessage();
             } else if (this.H === 0) {
-              this.a(121, null, 32);
-              this.tMsg();
+              this.showMessageDialog(121, null, 32);
+              this.queueMessage();
             }
           } else if (this.r[b] === 7) {
             if (this.C !== 0 && this.u[b] !== 2) {
-              this.a(173, null, 33);
+              this.showMessageDialog(173, null, 33);
             } else if (this.C === 0 && this.I === 0 && this.m === -1) {
               let arrayOfString = [String(30 - this.A)];
               if (this.h.a === null) {
-                this.a(73, null, 33);
+                this.showMessageDialog(73, null, 33);
               } else {
-                this.a(229, arrayOfString, 33);
+                this.showMessageDialog(229, arrayOfString, 33);
               }
             } else if (this.C === 0 && this.I !== 0) {
-              this.a(74, null, 33);
+              this.showMessageDialog(74, null, 33);
             }
           } else if (this.r[b] === 6) {
             if (!this.Q) {
-              this.a(126, null, 32);
+              this.showMessageDialog(126, null, 32);
               this.Q = true;
-              if (this.C === 0) this.tMsg();
+              if (this.C === 0) this.queueMessage();
             }
             if (!this.aj && this.h.e !== 0) {
-              this.a(198, null, -1);
+              this.showMessageDialog(198, null, -1);
               this.aj = true;
             }
-            this.w(6);
+            this.reservePathTiles(6);
           } else if (this.r[b] === 2) {
             if (this.u[b] === 0) {
               this.P = true;
-              this.a(114, null, 32);
+              this.showMessageDialog(114, null, 32);
               for (let b1 = 0; b1 < this.C.length; b1++) {
                 if (this.C[b1] === this.d + this.e * b) {
                   this.C[b1] = -1;
@@ -1544,43 +1828,43 @@ export class i extends Screen {
                 }
               }
             } else if (this.l === null && this.C === 0) {
-              this.i(4);
+              this.selectItemSlot(4);
             }
           } else if (this.r[b] === 5 && this.u[b] === 0) {
-            this.w(5);
+            this.reservePathTiles(5);
           } else if (this.r[b] === 3) {
             if (this.W === 0) {
-              this.a(112, null, 32);
+              this.showMessageDialog(112, null, 32);
               this.W = 1;
             }
             if (!this.al && this.h.e !== 0) {
-              this.a(200, null, -1);
-              this.a(192, null, -1);
+              this.showMessageDialog(200, null, -1);
+              this.showMessageDialog(192, null, -1);
               this.al = true;
               this.ad = true;
             }
           } else if (this.r[b] === 1) {
             if (this.u[b] === 0 && this.m === -1) {
               if (this.Y === 0) {
-                this.a(82, null, 32);
+                this.showMessageDialog(82, null, 32);
                 this.Y = 1;
               }
               if (!this.al && this.h.e !== 0) {
-                this.a(200, null, -1);
-                this.a(192, null, -1);
+                this.showMessageDialog(200, null, -1);
+                this.showMessageDialog(192, null, -1);
                 this.ad = true;
                 this.al = true;
               }
             }
-            this.d(b, 0);
-            this.w(1);
+            this.legacyD2(b, 0);
+            this.reservePathTiles(1);
           } else if (this.r[b] === 0) {
             if (this.X === 0) {
-              this.a(123, null, 32);
+              this.showMessageDialog(123, null, 32);
               this.X = 1;
             }
             if (!this.ak && this.h.e !== 0) {
-              this.a(199, null, -1);
+              this.showMessageDialog(199, null, -1);
               this.ak = true;
             }
           }
@@ -1588,17 +1872,17 @@ export class i extends Screen {
       }
       if (j === 0 || j === 1) {
         if (this.d === 22 && this.e === 23) {
-          this.a(204, null, 53);
+          this.showMessageDialog(204, null, 53);
         } else if (this.d === 22 && this.e === 28) {
-          this.a(205, null, 53);
+          this.showMessageDialog(205, null, 53);
         } else if (this.d === 4 && this.e === 33) {
-          this.a(206, null, 53);
+          this.showMessageDialog(206, null, 53);
         } else if (this.d === 4 && this.e === 19) {
-          this.a(207, null, 53);
+          this.showMessageDialog(207, null, 53);
         } else if (this.d === 12 && this.e === 26) {
-          this.a(208, null, 53);
+          this.showMessageDialog(208, null, 53);
         } else if (this.d === 18 && this.e === 34) {
-          this.a(209, null, 53);
+          this.showMessageDialog(209, null, 53);
         }
       }
       for (b = 0; b < this.w.length; b++) {
@@ -1615,11 +1899,11 @@ export class i extends Screen {
     }
   }
   
-  static aAction(paramInt1, paramInt2, paramInt3) {
+  static grantRandomLoot(paramInt1, paramInt2, paramInt3) { /* aAction */
     if (((this.B === 5 || this.B === 4) && this.l !== null && this.C !== 0) || this.B === -1) return;
     if (this.B === 5 && this.l !== null) {
       if (this.A[paramInt2] !== 19) {
-        this.a(202, null, 32);
+        this.showMessageDialog(202, null, 32);
         return;
       }
     } else if (this.l !== null && this.A[paramInt2] === 19) {
@@ -1627,12 +1911,12 @@ export class i extends Screen {
     }
     if (!this.j || paramInt3 !== 999) {
       if (this.l !== null && paramInt3 === 999) {
-        this.m();
+        this.resetDialogScroll();
       } else if (this.j && paramInt3 > 0) {
-        this.a(paramInt2, 1);
+        this.addItemToInventory(paramInt2, 1);
       } else if (this.l !== null && paramInt3 > 0) {
-        this.a(paramInt2, 1);
-        this.m();
+        this.addItemToInventory(paramInt2, 1);
+        this.resetDialogScroll();
       } else {
         return;
       }
@@ -1643,42 +1927,42 @@ export class i extends Screen {
       this.cPal[b] = false;
     }
     for (b = 0; b < paramInt1; b++) {
-      if (this.c()) return;
+      if (this.isConsumablesFull()) return;
       let j;
-      if ((j = this.a(0, this.k + this.l - 1, this.a)) >= this.k) {
+      if ((j = this.randomBetween(0, this.k + this.l - 1, this.a)) >= this.k) {
         if (this.q[j - this.k] < this.h[8]) {
           this.q[j - this.k] = (this.q[j - this.k] + 1);
           this.cPal[j] = true;
-          this.a(j, 0, this.q[j - this.k]);
+          this.isInTileSet(j, 0, this.q[j - this.k]);
         } else {
           b--;
         }
       } else if (this.p[j] < this.h[this.B]) {
         this.p[j] = (this.p[j] + 1);
         this.cPal[j] = true;
-        this.a(j, 0, this.p[j]);
+        this.isInTileSet(j, 0, this.p[j]);
       } else {
         b--;
       }
     }
-    if (this.c()) return;
-    this.v(61);
+    if (this.isConsumablesFull()) return;
+    this.playSound(61);
     this.p = true;
   }
   
-  static o() {
+  static clearPickupMarks() {
     this.m = false;
     let b;
     for (b = 0; b < this.k; b++) {
-      if (this.p[b] < this.h[this.B]) this.a(this.i[this.B], this.j[this.B], false);
+      if (this.p[b] < this.h[this.B]) this.isInTileSet(this.i[this.B], this.j[this.B], false);
     }
     for (b = 0; b < this.l; b++) {
-      if (this.q[b] < this.h[8]) this.a(this.i[8], this.j[8], false);
+      if (this.q[b] < this.h[8]) this.isInTileSet(this.i[8], this.j[8], false);
     }
     this.p = false;
   }
   
-  static c() {
+  static isConsumablesFull() {
     let b1 = 0;
     let b2;
     for (b2 = 0; b2 < this.k; b2++) {
@@ -1694,36 +1978,36 @@ export class i extends Screen {
     return false;
   }
   
-  static pStep() {
+  static playPickupSound() { /* pStep */
     if (typeof this.v !== 'function') return;
-    if (this.a()) {
-      this.v(59);
+    if (this.isDaytime()) {
+      this.playSound(59);
       return;
     }
-    this.v(60);
+    this.playSound(60);
   }
   
-  static q() {
-    if (this.m !== 6) this.pStep();
+  static updatePickups() {
+    if (this.m !== 6) this.playPickupSound();
     if (this.j !== -1) {
       let arrayOfString;
-      if ((arrayOfString = this.a(this.B, this.k, this.l)) !== null) {
-        this.a(79, arrayOfString, this.f[0]);
+      if ((arrayOfString = this.itemMessageStub(this.B, this.k, this.l)) !== null) {
+        this.showMessageDialog(79, arrayOfString, this.f[0]);
       }
       if (this.C !== 0) {
-        if (this.a() && (this.B === 1 || this.B === 7 || this.B === 3 || this.B === 6)) {
-          this.g(30);
-          this.a(228, null, -1);
-        } else if (!this.a() && this.B === 0) {
-          this.g(100);
-          this.a(228, null, -1);
+        if (this.isDaytime() && (this.B === 1 || this.B === 7 || this.B === 3 || this.B === 6)) {
+          this.gainEnergy(30);
+          this.showMessageDialog(228, null, -1);
+        } else if (!this.isDaytime() && this.B === 0) {
+          this.gainEnergy(100);
+          this.showMessageDialog(228, null, -1);
         }
       }
     } else if (this.m !== 2 && this.m === 6) {
-      this.a(11, 1);
+      this.addItemToInventory(11, 1);
       this.r = 2;
       this.G = false;
-      this.tMsg();
+      this.queueMessage();
       this.v = false;
       this.m = true;
     }
@@ -1759,12 +2043,12 @@ export class i extends Screen {
     this.n();
   }
   
-  static a(paramInt, paramByte1, paramByte2) {
+  static itemMessageStub(paramInt, paramByte1, paramByte2) {
     // Bytecode decompiled - method stub
     return null;
   }
   
-  static a(paramInt1, paramInt2) {
+  static addItemToInventory(paramInt1, paramInt2) {
     let arrayOfString = new Array(1);
     let b1 = 0;
     this.v = false;
@@ -1834,20 +2118,20 @@ export class i extends Screen {
             for (let b4 = 0; b4 < this.A.length; b4 += 2) {
               if (this.A[b4] === 18) {
                 this.A[b3 + 1] = (this.A[b3 + 1] + this.A[b4 + 1]);
-                this.a(b4, this.A[b4 + 1]);
+                this.removeItemFromInventory(b4, this.A[b4 + 1]);
                 break;
               }
             }
           }
         }
-        this.i(b);
+        this.selectItemSlot(b);
         break;
       }
     }
     return arrayOfString;
   }
   
-  static a(paramInt1, paramInt2) {
+  static removeItemFromInventory(paramInt1, paramInt2) {
     this.A[paramInt1 + 1] = (this.A[paramInt1 + 1] - paramInt2);
     if (this.A[paramInt1 + 1] <= 0 && this.A[paramInt1] !== 22 && this.A[paramInt1] !== 2) {
       for (let j = paramInt1 + 2; j < this.A.length; j++) this.A[j - 2] = this.A[j];
@@ -1857,7 +2141,7 @@ export class i extends Screen {
   }
   
   static _calcHealth(paramInt1, paramInt2, paramBoolean) {
-    let j = this.a(paramInt1, paramInt2, this.a);
+    let j = this.randomBetween(paramInt1, paramInt2, this.a);
     if (this.h.a === 2) j += j >> 1;
     if (j >= this.C && paramBoolean) j = this.C - 1;
     if (j > this.C) j = this.C;
@@ -1867,14 +2151,14 @@ export class i extends Screen {
       this.C = 0;
       this.aSeed = -1;
       if (paramInt1 < 100) return;
-      this.a(187, null, -1);
+      this.showMessageDialog(187, null, -1);
     }
   }
   
-  static jTick(paramInt) {
+  static advanceClock(paramInt) { /* jTick */
     this.z += paramInt;
     this.aProgress = (this.z - 12) / 24;
-    dbgR('jTick', { aProgress: this.aProgress, i: this.i, C: this.C, Aproto: this.aProgress >= 30 });
+    dbgR('advanceClock', { aProgress: this.aProgress, i: this.i, C: this.C, Aproto: this.aProgress >= 30 });
     let bool = false;
     if (this.aProgress >= 30 && this.I === 0 && this.C === 0) {
 // [dbg removed]
@@ -1895,37 +2179,37 @@ export class i extends Screen {
       let arrayOfString = ["" + this.l];
       b = false;
       this.i = false;
-      this.tMsg();
-      this.a(174, arrayOfString, -1);
+      this.queueMessage();
+      this.showMessageDialog(174, arrayOfString, -1);
       this.r = 5;
     }
     if (!bool) {
       this.i = (this.i + paramInt);
       if (this.i > 23) this.i = (this.i - 24);
     }
-    if ((this.i === 6 || this.i === 18) && this.C !== 0) this.a(179, null, -1);
-    this.pStep();
+    if ((this.i === 6 || this.i === 18) && this.C !== 0) this.showMessageDialog(179, null, -1);
+    this.playPickupSound();
   }
   
-  static r() {
+  static legacyR0() {
     if (this.s === null) {
       this.k = false;
       let b;
       for (b = 0; b < this.h.length; b++) {
-        if (this.o[b] === this.a(this.d, this.e, 9, 7680)) {
-          this.nB(b);
+        if (this.o[b] === this.tileFieldBits(this.d, this.e, 9, 7680)) {
+          this.entityAiN(b);
         }
       }
       for (b = 0; b < this.h.length; b++) {
-        if (this.o[b] === this.a(this.d, this.e, 9, 7680)) {
+        if (this.o[b] === this.tileFieldBits(this.d, this.e, 9, 7680)) {
           if (this.h[b] === 0) {
-            this.k(b);
+            this.entityAiK(b);
           } else {
-            this.o(b);
-            this.l(b);
-            this.m(b);
-            this.pAdd(b);
-            this.q(b);
+            this.entityAiO(b);
+            this.entityAiL(b);
+            this.entityAiM(b);
+            this.entityAiP(b);
+            this.entityAiQ(b);
           }
         }
       }
@@ -1933,33 +2217,33 @@ export class i extends Screen {
     this.s = false;
   }
   
-  static k(paramInt) {
+  static entityAiK(paramInt) {
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
-      if (this.a()) {
+      if (this.isDaytime()) {
         if (this.k !== null) {
-          this.bSet(paramInt, this.f, this.g);
+          this.bSet(paramInt, this.prevX, this.g);
           return;
         }
-        this.s(paramInt);
+        this.wanderEntity(paramInt);
         return;
       }
-      if (this.a(paramInt, 1)) {
+      if (this.addItemToInventory(paramInt, 1)) {
         this.bSet(paramInt, this.f[0], this.f[1]);
-        this.a(this.i[paramInt], this.j[paramInt], 1, 1);
+        this.tileFieldBits(this.i[paramInt], this.j[paramInt], 1, 1);
         return;
       }
     } else if (this.i === 6) {
       this.aCam[paramInt] = true;
-      this.r(paramInt);
+      this.randomizeEntityPosition(paramInt);
     }
   }
   
-  static l(paramInt) {
+  static entityAiL(paramInt) {
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
-      if (this.a()) {
-        if (this.a(paramInt, 5)) {
+      if (this.isDaytime()) {
+        if (this.removeItemFromInventory(paramInt, 5)) {
           this.k[paramInt] = this.f[0];
           this.l[paramInt] = this.f[1];
           this.i[paramInt] = this.f[0];
@@ -1967,30 +2251,30 @@ export class i extends Screen {
           return;
         }
         if (this.k !== null) {
-          this.bSet(paramInt, this.f, this.g);
+          this.bSet(paramInt, this.prevX, this.g);
           return;
         }
-        this.s(paramInt);
+        this.wanderEntity(paramInt);
       }
     }
   }
   
-  static m(paramInt) {
+  static entityAiM(paramInt) {
     if (this.aCam[paramInt] !== null) {
-      if (!this.a()) {
+      if (!this.isDaytime()) {
         if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
         if (this.k !== null) {
-          this.bSet(paramInt, this.f, this.g);
+          this.bSet(paramInt, this.prevX, this.g);
         } else {
-          this.s(paramInt);
+          this.wanderEntity(paramInt);
         }
         if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
-        if (this.a(0, 100, this.a) <= 50) {
+        if (this.randomBetween(0, 100, this.a) <= 50) {
           if (this.k !== null) {
-            this.bSet(paramInt, this.f, this.g);
+            this.bSet(paramInt, this.prevX, this.g);
             return;
           }
-          this.s(paramInt);
+          this.wanderEntity(paramInt);
           return;
         }
       } else {
@@ -2007,7 +2291,7 @@ export class i extends Screen {
     }
   }
   
-  static s() {
+  static applyHourSixDelta() {
     if (this.i === 6) {
       for (let b = 0; b < this.u; b++) {
         for (let b1 = 0; b1 < this.r.length; b1++) {
@@ -2022,89 +2306,85 @@ export class i extends Screen {
     }
   }
   
-  static nB(paramInt) {
+  static entityAiN(paramInt) { /* nB */
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
-      if (this.a(this.i[paramInt], this.j[paramInt], this.f, this.g)) {
-        this.bSet(paramInt, this.f, this.g);
-      } else if (this.a() || this.h[paramInt] === 2) {
-        this.s(paramInt);
+      if (this.tileFieldBits(this.i[paramInt], this.j[paramInt], this.prevX, this.g)) {
+        this.bSet(paramInt, this.prevX, this.g);
+      } else if (this.isDaytime() || this.h[paramInt] === 2) {
+        this.wanderEntity(paramInt);
       }
-      if (this.a(this.i[paramInt], this.j[paramInt], this.d, this.e)) {
+      if (this.tileFieldBits(this.i[paramInt], this.j[paramInt], this.d, this.e)) {
         this.k = true;
         return;
       }
     } else if (this.i === 6 && (this.C === 0 || this.h[paramInt] === true)) {
       this.aCam[paramInt] = true;
-      this.r(paramInt);
+      this.randomizeEntityPosition(paramInt);
     }
   }
   
-  static o(paramInt) {
+  static entityAiO(paramInt) {
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
-      if (!this.a() || this.a(0, 100, this.a) <= 50) {
-        this.s(paramInt);
+      if (!this.randomBetween() || this.randomBetween(0, 100, this.a) <= 50) {
+        this.wanderEntity(paramInt);
         return;
       }
     } else if (this.i === 6) {
       this.aCam[paramInt] = true;
-      this.r(paramInt);
+      this.randomizeEntityPosition(paramInt);
     }
   }
   
-  static pAdd(paramInt) {
+  static entityAiP(paramInt) { /* pAdd */
     if (this.aCam[paramInt] !== null) {
-      if (!this.a()) {
+      if (!this.isDaytime()) {
         this.aCam[paramInt] = false;
         return;
       }
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
-      if (this.a(0, 100, this.a) <= 30) {
-        this.s(paramInt);
+      if (this.randomBetween(0, 100, this.a) <= 30) {
+        this.wanderEntity(paramInt);
         return;
       }
     } else if (this.i === 6) {
       this.aCam[paramInt] = true;
-      this.r(paramInt);
+      this.randomizeEntityPosition(paramInt);
     }
   }
   
-  static q(paramInt) {
+  static entityAiQ(paramInt) {
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       let j;
-      if ((j = this.a(this.i[paramInt], this.j[paramInt], 0, 7)) === 3 || j === 4 || j === 5) {
-        this.s(paramInt);
-      } else if (this.a(0, 100, this.a) <= 50) {
-        this.s(paramInt);
+      if ((j = this.tileFieldBits(this.i[paramInt], this.j[paramInt], 0, 7)) === 3 || j === 4 || j === 5) {
+        this.wanderEntity(paramInt);
+      } else if (this.randomBetween(0, 100, this.a) <= 50) {
+        this.wanderEntity(paramInt);
       }
       return;
     }
     if (this.i === 6) {
       this.aCam[paramInt] = true;
-      this.r(paramInt);
+      this.randomizeEntityPosition(paramInt);
     }
   }
   
-  static a(paramInt1, paramInt2, paramInt3, paramInt4) {
+  static isAdjacentPos(paramInt1, paramInt2, paramInt3, paramInt4) {
     return (paramInt1 >= paramInt3 - 1 && paramInt1 <= paramInt3 + 1 && paramInt2 >= paramInt4 - 1 && paramInt2 <= paramInt4 + 1);
   }
   
-  static r(paramInt) {
-    while (true) {
-      let b1 = this.a(0, this.b, this.a);
-      let b2 = this.a(0, this.mapH, this.a);
-      if (!this.c(b1, b2, paramInt) || this.a(this.d, this.e, b1, b2)) continue;
-      this.i[paramInt] = b1;
-      this.j[paramInt] = b2;
-      this.k[paramInt] = b1;
-      this.l[paramInt] = b2;
-      return;
-    }
+  static randomizeEntityPosition(paramInt) {
+// Java i.java:2879 r(int). Delegated to placeEntity (i.js:581): this body used
+// to write this.i/this.j/this.k/this.l, but this.i is the game-state counter
+// and this.j/this.k/this.l are scalars here, so `this.i[paramInt] = b1` threw
+// in strict mode at all 5 call sites. It also sampled 0..this.b, where this.b
+// is a 9-slot array, not mapW.
+    this.placeEntity(paramInt);
   }
   
-  static a(paramByte1, paramByte2, paramInt1, paramInt2) {
+  static tileFieldBits(paramByte1, paramByte2, paramInt1, paramInt2) {
     return (paramByte1 >= 0 && paramByte1 < this.mapW && paramByte2 >= 0 && paramByte2 < this.mapH) ? ((this.s[paramByte1 + paramByte2 * this.mapW] & paramInt2) >> paramInt1) : ((paramByte2 >= this.mapH) ? -1 : 6);
   }
   
@@ -2112,21 +2392,21 @@ export class i extends Screen {
     return (this.i >= 6 && this.i <= 17);
   }
   
-  static a(paramInt1, paramInt2) {
+  static unresolvedA2115(paramInt1, paramInt2) {
     // Bytecode decompiled - method stub
     return false;
   }
   
-  static s(paramInt) {
+  static wanderEntity(paramInt) {
     let b = 0;
     do {
-      let j = this.a(-1, 1, this.a);
-      let k = this.a(-1, 1, this.a);
-      if (this.a(paramInt, j, k, true)) return;
+      let j = this.randomBetween(-1, 1, this.a);
+      let k = this.randomBetween(-1, 1, this.a);
+      if (this.stepEntity(paramInt, j, k, true)) return;
     } while (++b < 30);
   }
   
-  static b(paramInt1, paramInt2, paramInt3) {
+  static faceEntityTowards(paramInt1, paramInt2, paramInt3) {
     let bool1;
     let bool2;
     if (this.i[paramInt1] === paramInt2 && this.j[paramInt1] === paramInt3) return;
@@ -2146,21 +2426,21 @@ export class i extends Screen {
     }
     for (let b = 0; b < 3; b++) {
       if (b === 0) {
-        if (this.a(paramInt1, bool1, bool2, false)) return;
+        if (this.isAdjacentPos(paramInt1, bool1, bool2, false)) return;
       } else {
-        this.c(b, bool1, bool2);
-        if (this.a(paramInt1, this.f[0], this.f[1], false)) return;
+        this.canPlaceEntity(b, bool1, bool2);
+        if (this.isAdjacentPos(paramInt1, this.f[0], this.f[1], false)) return;
       }
     }
-    this.s(paramInt1);
+    this.wanderEntity(paramInt1);
   }
   
-  static c(paramInt1, paramInt2, paramInt3) {
+  static unresolvedC2158(paramInt1, paramInt2, paramInt3) {
     // Bytecode decompiled - method stub
   }
   
-  static a(paramInt1, paramInt2, paramInt3, paramBoolean) {
-    if ((paramInt2 !== 0 || paramInt3 !== 0) && (this.k[paramInt1] !== this.i[paramInt1] + paramInt2 || this.l[paramInt1] !== this.j[paramInt1] + paramInt3 || !paramBoolean) && this.c(this.i[paramInt1] + paramInt2, this.j[paramInt1] + paramInt3, paramInt1)) {
+  static stepEntity(paramInt1, paramInt2, paramInt3, paramBoolean) {
+    if ((paramInt2 !== 0 || paramInt3 !== 0) && (this.k[paramInt1] !== this.i[paramInt1] + paramInt2 || this.l[paramInt1] !== this.j[paramInt1] + paramInt3 || !paramBoolean) && this.canPlaceEntity(this.i[paramInt1] + paramInt2, this.j[paramInt1] + paramInt3, paramInt1)) {
       this.k[paramInt1] = this.i[paramInt1];
       this.l[paramInt1] = this.j[paramInt1];
       this.i[paramInt1] = (this.i[paramInt1] + paramInt2);
@@ -2170,25 +2450,33 @@ export class i extends Screen {
     return false;
   }
   
-  static c(paramByte1, paramByte2, paramInt) {
+  static canPlaceEntity(paramByte1, paramByte2, paramInt) {
     if (!this.bCk(paramByte1, paramByte2)) return false;
-    if (this.a(paramByte1, paramByte2, 0, 7) === 7) return false;
-    if (this.a(paramByte1, paramByte2, 0, 7) === 6) return false;
-    if (this.o[paramInt] !== this.a(paramByte1, paramByte2, 9, 7680)) return false;
-    for (let b = 0; b < this.h.length; b++) {
-      if (this.i[b] === paramByte1 && this.j[b] === paramByte2) return false;
+    if (this.tileFieldBits(paramByte1, paramByte2, 0, 7) === 7) return false;
+    if (this.tileFieldBits(paramByte1, paramByte2, 0, 7) === 6) return false;
+// i.java:7687-7695 keeps the per-entity sprite id in 'o' and the per-entity
+// tiles in 'i'/'j', but this.o is undefined and this.i is the game-state
+// counter here, so `this.o[paramInt]` threw at every call. Read the
+// non-colliding arrays loadTileData allocates, falling back to the legacy
+// names in case this runs before the map is loaded.
+    const sprite = this.entSprite ? this.entSprite[paramInt] : this.o[paramInt];
+    if (sprite !== this.tileFieldBits(paramByte1, paramByte2, 9, 7680)) return false;
+    const xs = this.entX || this.i;
+    const ys = this.entY || this.j;
+    for (let b = 0; b < xs.length; b++) {
+      if (xs[b] === paramByte1 && ys[b] === paramByte2) return false;
     }
     return true;
   }
   
-  static b(paramInt1, paramInt2) {
+  static isWalkable(paramInt1, paramInt2) {
     if (paramInt1 < 0 || paramInt1 >= this.mapW || paramInt2 < 0 || paramInt2 >= this.mapH) return false;
-    let j = this.a(paramInt1, paramInt2, 0, 7);
-    let k = this.a(paramInt1, paramInt2, 13, 57344);
+    let j = this.tileFieldBits(paramInt1, paramInt2, 0, 7);
+    let k = this.tileFieldBits(paramInt1, paramInt2, 13, 57344);
     return (j === 6 && k !== 2 && k !== 4) ? false : (!(k === 4 && this.I !== 0));
   }
   
-  static a(paramInt1, paramInt2, paramRandom) {
+  static randomBetween(paramInt1, paramInt2, paramRandom) {
     if (paramInt2 - paramInt1 + 1 === 0) paramInt2++;
     return (paramRandom.nextInt() >>> 1) % (paramInt2 - paramInt1 + 1) + paramInt1;
   }
@@ -2199,11 +2487,22 @@ export class i extends Screen {
   }
   
   static _renderAll(paramGraphics, paramBoolean) {
+    if (globalThis.__WM_DEBUG_TUFTS) this.tuftCount = 0;
     try { i._renderTerrain.call(this, paramGraphics); } catch(_e) { console.warn('[i] terrain err:', _e.message); }
     try { i._renderOverlay.call(this, paramGraphics); } catch(_e) { console.warn('[i] overlay err:', _e.message); }
     try { i._renderEntities.call(this, 1, paramGraphics); } catch(_e) { console.warn('[i] entities1 err:', _e.message); }
     try { i._renderEntities.call(this, 0, paramGraphics); } catch(_e) {}
     try { i._renderEntities.call(this, 2, paramGraphics); } catch(_e) { console.warn('[i] entities2 err:', _e.message); }
+    if (globalThis.__WM_DEBUG_TUFTS) {
+      try {
+        for (let t = 0; t < this.tuftCount; t++) {
+          paramGraphics.setColor(this.tuftFlag[t] ? 0x00ffff : 0xff00ff);
+          paramGraphics.fillRect(this.tuftX[t], this.tuftY[t], 2, 2);
+        }
+        this._tuftFrames = (this._tuftFrames || 0) + 1;
+        if (this._tuftFrames % 60 === 0) console.log('[i.js] tufts:', this.tuftCount);
+      } catch (_e) {}
+    }
     try { i._renderMinimap.call(this, paramGraphics); } catch(_e) { console.warn('[i] minimap err:', _e.message); }
     if (!paramBoolean) return;
   }
@@ -3321,35 +3620,35 @@ export class i extends Screen {
     let n = paramInt2;
     let bool2;
     if (paramByte1 >= 0 && paramByte1 < this.mapW && paramByte2 >= 0 && paramByte2 < this.mapH) {
-      bool2 = this.a(paramByte1, paramByte2, 0, 7);
+      bool2 = this.tileFieldBits(paramByte1, paramByte2, 0, 7);
     } else {
       bool2 = false;
     }
-    dbgR('entityClip', { tileX: paramByte1, tileY: paramByte2, x: paramInt1, y: paramInt2, w: paramInt3, h: paramInt4, kind: paramInt5, inBounds: (paramByte1 >= 0 && paramByte1 < this.b && paramByte2 >= 0 && paramByte2 < this.c), tileBits: bool2, H: this.H, J: this.J, bdW: this.b, bdH: this.c });
+    dbgR('entityClip', { tileX: paramByte1, tileY: paramByte2, x: paramInt1, y: paramInt2, w: paramInt3, h: paramInt4, kind: paramInt5, inBounds: (paramByte1 >= 0 && paramByte1 < this.b && paramByte2 >= 0 && paramByte2 < this.c), tileBits: bool2, H: this.H, skyBand: this.skyBand, bdW: this.b, bdH: this.c });
     if (bool2 === 7) {
       b1 = 1;
-      if (paramInt2 < this.H + this.J && paramInt2 + paramInt4 > this.H + this.J)
-        b1 = 2;
+    if (paramInt2 < this.H + this.skyBand && paramInt2 + paramInt4 > this.H + this.skyBand)
+      b1 = 2;
     }
     for (let b2 = 0; b2 < b1; b2++) {
-      if (paramInt2 < this.H + this.J) {
+      if (paramInt2 < this.H + this.skyBand) {
         bool1 = true;
       } else {
         bool1 = false;
       }
       if (b1 === 2)
         if (bool1) {
-          paramInt4 = this.H + this.J - paramInt2;
+          paramInt4 = this.H + this.skyBand - paramInt2;
         } else {
-          paramInt4 = paramInt2 + m - this.H + this.J;
+          paramInt4 = paramInt2 + m - this.H + this.skyBand;
         }
-      j = this.a(paramByte1, paramByte2, bool1, true);
-      k = this.a(paramByte1, paramByte2, bool1, false);
+      j = this.tileFieldBits(paramByte1, paramByte2, bool1, true);
+      k = this.tileFieldBits(paramByte1, paramByte2, bool1, false);
       if (bool1) {
-        this.a(paramInt4, this.H, this.H + this.J, j, k, paramInt1, paramInt2, paramInt1, paramInt2 + m, paramInt1 + paramInt3, paramInt2, paramInt1 + paramInt3, paramInt2 + m, paramGraphics, paramByte1, paramByte2, paramInt5, paramInt3, m, 0);
-        paramInt2 = this.H + this.J;
+        this.renderCell20(paramInt4, this.H, this.H + this.skyBand, j, k, paramInt1, paramInt2, paramInt1, paramInt2 + m, paramInt1 + paramInt3, paramInt2, paramInt1 + paramInt3, paramInt2 + m, paramGraphics, paramByte1, paramByte2, paramInt5, paramInt3, m, 0);
+        paramInt2 = this.H + this.skyBand;
       } else {
-        this.a(paramInt4, this.H + this.J, 169, j, k, paramInt1, n, paramInt1, n + m, paramInt1 + paramInt3, n, paramInt1 + paramInt3, n + m, paramGraphics, paramByte1, paramByte2, paramInt5, paramInt3, m, this.H + this.J - n);
+        this.renderCell20(paramInt4, this.H + this.skyBand, 169, j, k, paramInt1, n, paramInt1, n + m, paramInt1 + paramInt3, n, paramInt1 + paramInt3, n + m, paramGraphics, paramByte1, paramByte2, paramInt5, paramInt3, m, this.H + this.skyBand - n);
       }
     }
   }
@@ -3454,7 +3753,7 @@ export class i extends Screen {
       a(paramInt1, paramInt2, b, paramGraphics); 
   }
   
-  static c(paramInt1, paramInt2) {
+  static renderRegion(paramInt1, paramInt2) {
     if (paramInt2 <= 103)
       return false; 
     if (a(d, e, 0, 7) !== 7)
@@ -3489,7 +3788,7 @@ export class i extends Screen {
     // Java i.java:7502/7506 — variant 0..3 of the water shore at (x, y),
     // from which side the water tile neighbours are, rotated by heading h.
     const h = this.h & 3;
-    const isWater = (sx, sy) => i.aTile.call(this, paramInt1 + sx, paramInt2 + sy, 0, 7) === 7;
+    const isWater = (sx, sy) => i.readTileBits.call(this, paramInt1 + sx, paramInt2 + sy, 0, 7) === 7;
     let up, right, down, left;
     switch (h) {
       case 0:
@@ -3528,7 +3827,7 @@ export class i extends Screen {
     let i1 = 0;
     let i2 = 0;
     let i3;
-    if ((i3 = i.aTile.call(this, paramInt1, paramInt2, 0, 7)) === -1)
+    if ((i3 = i.readTileBits.call(this, paramInt1, paramInt2, 0, 7)) === -1)
       i3 = 0; 
     let i4 = 0;
     let i5 = 0;
@@ -3650,7 +3949,7 @@ export class i extends Screen {
     return paramInt1 + (k * (paramInt3 - paramInt1) >> 8);
   }
   
-  static a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics, paramBoolean) {
+  static renderTileColumn(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics, paramBoolean) {
     let j = 0;
     let k = 0;
     let m = 0;
@@ -3839,7 +4138,7 @@ export class i extends Screen {
     cRes.drawSprite(this.g[this.h], (this.d - minimapX) * 9 + 4, (this.e - minimapY) * 9 + 4, paramGraphics);
   }
   
-  a(paramInt1, paramInt2, paramInt3, paramInt4, paramGraphics) {
+  renderFrameBorder(paramInt1, paramInt2, paramInt3, paramInt4, paramGraphics) {
     let j = c.a(216, 2);
     paramGraphics.setClip(paramInt1 - j, paramInt2 - j, paramInt3 + (j << 1), paramInt4 + (j << 1));
     let b;
@@ -4037,7 +4336,7 @@ export class i extends Screen {
     } 
   }
   
-  static d(paramInt1, paramInt2) {
+  static legacyD2(paramInt1, paramInt2) {
     // Byte code:
     //   0: iload_1
     //   1: tableswitch default -> 178, 0 -> 28, 1 -> 103, 2 -> 106
@@ -4621,7 +4920,7 @@ export class i extends Screen {
       a(i2, i3, n, i1 + 15, paramGraphics); 
   }
   
-  static u() {
+  static markVisitedTiles() { /* u */
     for (let b = -1; b < 2; b++) {
       for (let b1 = -1; b1 < 2; b1++) {
         if (d + b >= 0 && d + b < b && e + b1 >= 0 && e + b1 < c && (g[d + b + (e + b1) * b] & true) === 0)
@@ -4630,7 +4929,7 @@ export class i extends Screen {
     } 
   }
   
-  a(paramGraphics) {
+  renderIntroFrame(paramGraphics) {
     if (u !== 0) {
       paramGraphics.setColor(0);
       paramGraphics.fillRect(0, 0, 176, 208);
@@ -4721,7 +5020,7 @@ export class i extends Screen {
     } 
   }
   
-  static e(paramInt) {
+  static spriteRowForId(paramInt) {
     switch (paramInt) {
       case 101:
         return 72;
@@ -4851,7 +5150,7 @@ export class i extends Screen {
     } 
   }
   
-  static tMsg(paramInt) {
+  static queueMessage(paramInt) { /* tMsg */
     for (let b = 0; b < k.length; b++) {
       if (k[b] === paramInt)
         return; 
@@ -4863,7 +5162,7 @@ export class i extends Screen {
     v = true;
   }
   
-  static uStep(paramInt) {
+  static updateWeatherParticles(paramInt) { /* uStep */
     let b1 = 0;
     for (let b2 = 0; b2 < paramInt; b2++) {
       b1 = 0;
@@ -4872,8 +5171,8 @@ export class i extends Screen {
         if (this.pFlag[b >> 1] === 0 && this.eArr[b + 1] < 26 && this.eArr[b + 1] > 0) {
           b1++;
         } else if (this.eArr[b + 1] <= 0) {
-          this.eArr[b] = this.aRandom(-127, 127, this.a);
-          this.eArr[b + 1] = this.aRandom(101, 127, this.a);
+          this.eArr[b] = this.randomInt(-127, 127, this.a);
+          this.eArr[b + 1] = this.randomInt(101, 127, this.a);
           if (Q) {
             this.pFlag[b >> 1] = 0;
           } else {
@@ -4884,16 +5183,16 @@ export class i extends Screen {
       if (Q) {
         Q--;
         if (Q)
-          P = this.aRandom(5, 100, this.a); 
+          P = this.randomInt(5, 100, this.a); 
       } else if (P) {
         P--;
         if (P)
-          Q = this.aRandom(5, 20, this.a); 
+          Q = this.randomInt(5, 20, this.a); 
       } 
     } 
     if (b1 > 0) {
       if (A !== 1) {
-        B = a(0, 7, a);
+        B = this.randomBetween(0, 7, this.a);
         A = 2;
         return;
       } 
@@ -4924,25 +5223,25 @@ export class i extends Screen {
     return paramByte & 0xFF;
   }
   
-  a(paramArrayOfbyte) {
+  readInt32BE(paramArrayOfbyte) {
     return this.unsignedByte(paramArrayOfbyte[O++]) << 24 | this.unsignedByte(paramArrayOfbyte[O++]) << 16 | this.unsignedByte(paramArrayOfbyte[O++]) << 8 | this.unsignedByte(paramArrayOfbyte[O++]);
   }
   readUnsignedShort(paramArrayOfbyte) {
     return (this.unsignedByte(paramArrayOfbyte[O++]) << 8 | this.unsignedByte(paramArrayOfbyte[O++]));
   }
   
-  a(paramArrayOfbyte) {
+  readBoolByte(paramArrayOfbyte) {
     let b;
     return ((b = paramArrayOfbyte[O++]) === 1);
   }
   
-  b(paramArrayOfbyte, paramInt1, paramInt2) {
+  writeInt16BE(paramArrayOfbyte, paramInt1, paramInt2) {
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 8 & 0xFF);
     paramArrayOfbyte[paramInt1++] = (paramInt2 & 0xFF);
     return paramInt1;
   }
   
-  v() {
+  calcScore() {
     if (C !== 0) {
       g = true;
     } else {
@@ -4979,7 +5278,7 @@ export class i extends Screen {
     e = h + g + j + i + f;
   }
   
-  a(paramArrayOfbyte, paramInt, paramBoolean) {
+  writeBoolByte(paramArrayOfbyte, paramInt, paramBoolean) {
     if (paramBoolean) {
       paramArrayOfbyte[paramInt++] = 1;
     } else {
@@ -4988,31 +5287,31 @@ export class i extends Screen {
     return paramInt;
   }
   
-  w() {
+  writeSaveRecord() {
     N = z;
     h.b = 1;
     let j = 0;
  ;
-    j = a(arrayOfByte = new byte[2600], 0, v);
+    j = this.writeBoolByte(arrayOfByte = new byte[2600], 0, v);
     arrayOfByte[j++] = v;
     arrayOfByte[j++] = h.a;
-    j = a(arrayOfByte, j, h.e);
-    j = a(arrayOfByte, j, k);
-    j = a(arrayOfByte, j, a);
-    j = a(arrayOfByte, j, b);
+    j = this.writeBoolByte(arrayOfByte, j, h.e);
+    j = this.writeBoolByte(arrayOfByte, j, k);
+    j = this.writeBoolByte(arrayOfByte, j, a);
+    j = this.writeBoolByte(arrayOfByte, j, b);
     let b;
     for (b = 0; b < n.length; b++)
-      j = a(arrayOfByte, j, n[b]); 
+      j = this.writeBoolByte(arrayOfByte, j, n[b]); 
     for (b = 0; b < D.length; b++)
       arrayOfByte[j++] = D[b]; 
     for (b = 0; b < o.length; b++)
-      j = a(arrayOfByte, j, o[b]); 
+      j = this.writeBoolByte(arrayOfByte, j, o[b]); 
     for (b = 0; b < E.length; b++)
       arrayOfByte[j++] = E[b]; 
-    j = a(arrayOfByte, j, A);
-    j = a(arrayOfByte, j, B);
-    j = a(arrayOfByte, j, C);
-    j = a(arrayOfByte, j, D);
+    j = this.writeBoolByte(arrayOfByte, j, A);
+    j = this.writeBoolByte(arrayOfByte, j, B);
+    j = this.writeBoolByte(arrayOfByte, j, C);
+    j = this.writeBoolByte(arrayOfByte, j, D);
     j = a(arrayOfByte, j, E);
     j = a(arrayOfByte, j, S);
     for (b = 0; b < x.length; b++)
@@ -5139,7 +5438,7 @@ export class i extends Screen {
     } 
   }
   
-  b() {
+  unresolvedB5142() {
     // Byte code:
     //   0: iconst_0
     //   1: putstatic i.O : I
@@ -5983,7 +6282,7 @@ export class i extends Screen {
     //   4	1598	1599	java/lang/Exception
   }
   
-  c() {
+  unresolvedC5986() {
     // Byte code:
     //   0: iconst_0
     //   1: putstatic i.x : Z
@@ -6288,7 +6587,7 @@ export class i extends Screen {
     //   587: return
   }
   
-  a(paramBoolean) {
+  leaveLevel(paramBoolean) {
     if (m !== 8)
       if (a === -1) {
         p();
@@ -6305,22 +6604,22 @@ export class i extends Screen {
     h.a.h();
   }
   
-  v(paramInt) {
+  playSound(paramInt) {
     if (paramInt !== -1 && paramInt !== a) {
       a = paramInt;
       m.a(27, h.a);
     } 
   }
   
-  d() {
+  setFlagAn() {
     an = true;
   }
   
-  e() {
+  clearFlagAn() {
     an = false;
   }
   
-  f() {
+  legacyF0() {
     // Byte code:
     //   0: getstatic i.t : I
     //   3: ifle -> 136
@@ -6386,7 +6685,7 @@ export class i extends Screen {
     //   136: return
   }
   
-  x() {
+  legacyX0() {
     if (t > null) {
       let b;
       for (b = 0; b < d.length && d[b] < 0; b++);
@@ -6399,7 +6698,7 @@ export class i extends Screen {
     } 
   }
   
-  a(paramInt1, paramArrayOfString, paramInt2) {
+  showMessageDialog(paramInt1, paramArrayOfString, paramInt2) {
     // Byte code:
     //   0: getstatic i.d : [I
     //   3: getstatic i.t : I
@@ -6601,10 +6900,12 @@ export class i extends Screen {
     } 
   }
   
-  a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt14, paramInt15, paramInt16, paramInt17, paramInt18, paramInt19) {
+  renderCell20(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt14, paramInt15, paramInt16, paramInt17, paramInt18, paramInt19) {
     let j = 0;
-    j = a(paramInt14, paramInt15);
-    if (!h || h === 4 || h === 2 || h === 6) {
+// Java i.java:7487 - a(int,int) is this.facingFromTileBits (i.java:7502), and the
+// 'h' selector is the per-screen lighting state this.h (0..8 -> hDayBounds rows).
+    j = this.facingFromTileBits(paramInt14, paramInt15);
+    if (!this.h || this.h === 4 || this.h === 2 || this.h === 6) {
       paramInt10 = paramInt6 + ((hDayBounds[paramInt16][j * 4 + 1] * 10 << 8) / 1000 * paramInt17 >> 8);
       paramInt12 = paramInt8 + ((hDayBounds[paramInt16][j * 4 + 3] * 10 << 8) / 1000 * paramInt17 >> 8);
       paramInt6 += (hDayBounds[paramInt16][j * 4] * 10 << 8) / 1000 * paramInt17 >> 8;
@@ -6615,14 +6916,239 @@ export class i extends Screen {
       paramInt6 += (hNightBounds[paramInt16][j * 4] * 10 << 8) / 1000 * paramInt17 >> 8;
       paramInt8 += (hNightBounds[paramInt16][j * 4 + 2] * 10 << 8) / 1000 * paramInt17 >> 8;
     } 
-    a(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt19, true);
+    this.renderTileColumn16(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt19, true);
   }
   
-  a(paramInt1, paramInt2) {
-    return a(7, paramInt1, paramInt2, 6) ? (a(7, paramInt1, paramInt2, 2) ? 3 : 2) : (a(7, paramInt1, paramInt2, 2) ? 1 : (a(7, paramInt1, paramInt2, 0) ? 0 : (a(7, paramInt1, paramInt2, 4) ? 0 : 0)));
+  renderTileColumn16(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt14, paramBoolean) {
+// Java i.java:7289 a(int x13, Graphics, int, boolean) — the 16-arg decor-strip
+// renderer. It walks the quad (paramInt6,paramInt7)-(paramInt10,paramInt11) and
+// paints a per-scanline colour gradient between paramInt4 and paramInt5. These
+// strips are plain setColor/drawLine bands, NOT sprites, which is why the
+// decor columns came out black while this was a stub. f() is this.clampByte,
+// the a(lo,hi,Random) helper is this.randomBetween, H is this.H.
+// NOTE: every '/' below is a Java int/int division, so it truncates toward
+// zero. JS does not, so each one is coerced with `| 0` — without it the
+// horizon test `paramInt2 === H * 70 / 100` can never match (76*70/100 is
+// 53.2 in JS, 53 in Java) and the gradient never draws.
+    let b1;
+    let b2;
+    let b3;
+    let b4;
+    let i17;
+    let i18;
+    let bool1;
+    let bool2;
+    const j = paramInt6;
+    const k = paramInt8;
+    const m = paramInt10;
+    const n = paramInt12;
+    let i1 = paramInt9 - paramInt7;
+    let i2 = paramInt8 - paramInt6;
+    let i3 = paramInt13 - paramInt11;
+    let i4 = paramInt12 - paramInt10;
+    const i5 = paramInt7;
+    const i6 = Math.abs(paramInt3 - paramInt2);
+    const i7 = paramInt1;
+    const i8 = (paramInt4 & 0xFF0000) >> 16;
+    const i9 = (paramInt4 & 0xFF00) >> 8;
+    const i10 = paramInt4 & 0xFF;
+    const i11 = (paramInt5 & 0xFF0000) >> 16;
+    const i12 = (paramInt5 & 0xFF00) >> 8;
+    const i13 = paramInt5 & 0xFF;
+    const i14 = -(((i8 - i11 << 8) / i6) | 0);
+    const i15 = -(((i9 - i12 << 8) / i6) | 0);
+    const i16 = -(((i10 - i13 << 8) / i6) | 0);
+    if (i1 < 0) {
+      i1 = -i1;
+      b2 = -1;
+    } else {
+      b2 = 1;
+    } 
+    if (i2 < 0) {
+      i2 = -i2;
+      b1 = -1;
+    } else {
+      b1 = 1;
+    } 
+    i1 <<= 1;
+    i2 <<= 1;
+    if (i3 < 0) {
+      i3 = -i3;
+      b4 = -1;
+    } else {
+      b4 = 1;
+    } 
+    if (i4 < 0) {
+      i4 = -i4;
+      b3 = -1;
+    } else {
+      b3 = 1;
+    } 
+    i3 <<= 1;
+    i4 <<= 1;
+    if (i2 > i1) {
+      bool1 = true;
+      i17 = i1 - (i2 >> 1);
+    } else {
+      bool1 = false;
+      i17 = i2 - (i1 >> 1);
+    } 
+    if (i4 > i3) {
+      bool2 = true;
+      i18 = i3 - (i4 >> 1);
+    } else {
+      bool2 = false;
+      i18 = i4 - (i3 >> 1);
+    } 
+    let bool3 = true;
+    let bool4 = true;
+    while (true) {
+      if (bool3 && bool4) {
+        paramInt14--;
+        const i19 = i8 + (i14 * (i7 - paramInt1 + i5 - paramInt2) >> 8);
+        const i20 = i9 + (i15 * (i7 - paramInt1 + i5 - paramInt2) >> 8);
+        const i21 = i10 + (i16 * (i7 - paramInt1 + i5 - paramInt2) >> 8);
+        const i19c = this.clampByte(i19);
+        const i20c = this.clampByte(i20);
+        const i21c = this.clampByte(i21);
+        if (paramInt14 <= 0) {
+          paramGraphics.setColor(i19c, i20c, i21c);
+          paramGraphics.drawLine(paramInt6, paramInt7, paramInt10, paramInt11);
+        } 
+        bool3 = false;
+        bool4 = false;
+        if (paramInt2 === (this.H * 70 / 100 | 0)) {
+          const i22 = i19c;
+          let i19r = i19c;
+          let i20r = i20c;
+          let i21r = i21c;
+          for (let b5 = 0; b5 < 4; b5++) {
+            const i27 = this.randomBetween(95, 105, this.a);
+            i19r = (i19r * i27 / 100) | 0;
+            i20r = (i20r * i27 / 100) | 0;
+            i21r = (i21r * i27 / 100) | 0;
+            i19r = this.clampByte(i19r);
+            i20r = this.clampByte(i20r);
+            i21r = this.clampByte(i21r);
+            let i25;
+            let i26;
+            if (b5 === 0) {
+              i25 = paramInt6;
+              i26 = paramInt10;
+            } else {
+              i25 = this.randomBetween(paramInt6, paramInt10, this.a);
+              i26 = this.randomBetween(paramInt6, paramInt10, this.a);
+            } 
+            paramGraphics.setColor(i19r, i20r, i21r);
+            paramGraphics.drawLine(i25, paramInt7, i26, paramInt11);
+            i19r = i22;
+            i20r = i20c;
+            i21r = i21c;
+          } 
+        } 
+        // i.java:7405-7441 — horizon scatter. The Java guard is `h.a != null`
+        // and h.a is the sentinel `private static Object a = new Object()`
+        // (h.java:205), which is never null, so in the running game the branch
+        // is always live; this.tuftEnabled stands in for that test.
+        // i7 is the strip scanline count, not a tile id. With H=76 (i.java:579),
+        // I=93 and J=I*40/100=37 (i.java:7016-7023) the four 16-arg call sites
+        // yield 37/56/53/23 and the entity path 7/20, so `i7 === 66` is dead
+        // code in the reference. The arrays are never read for drawing either
+        // (u/v are only written and reset at i.java:3170-3188). __WM_DEBUG_TUFTS
+        // forces the scatter plus a debug draw pass in _renderAll so it can be
+        // inspected on screen; off by default, so tuftCount stays 0.
+        if (this.tuftEnabled && paramBoolean && paramInt14 <= 0) {
+          // Java darkens i19/i20/i21 in place here, but those are recomputed at
+          // the top of every scanline and are not read again after setColor, so
+          // local copies are exactly equivalent to the mutation.
+          let dR = i19 - (i19 >> 2);
+          let dG = i20 - (i20 >> 2);
+          let dB = i21 - (i21 >> 2);
+          dR = this.clampByte(dR);
+          dG = this.clampByte(dG);
+          dB = this.clampByte(dB);
+          // Java reassigns i22 before reading `i22 >> 3`, so the shift uses the
+          // NEW value, and the division by 5 is int/int.
+          let i22 = paramInt7 - this.H + ((paramInt7 - this.H) >> 1);
+          i22 = ((i22 + this.randomBetween(0, i22 >> 3, this.a)) / 5) | 0;
+          paramGraphics.setColor(dR, dG, dB);
+          if (j != k)
+            paramGraphics.drawLine(paramInt6, paramInt7, paramInt6 + i22, paramInt11);
+          if (m != n)
+            paramGraphics.drawLine(paramInt10 - i22, paramInt7, paramInt10, paramInt11);
+          if (i7 === 66 || globalThis.__WM_DEBUG_TUFTS) {
+            let btuft = 3;
+            if (j != k)
+              btuft = 2;
+            if (m != n)
+              btuft = btuft - 1;
+            for (let b6 = 0; b6 < btuft; b6++) {
+              if (this.tuftCount < this.tuftX.length && this.randomBetween(0, 100, this.a) < 80) {
+                let i23 = 0;
+                let i24 = 0;
+                if (j != k)
+                  i23 = i22 + 5;
+                if (m != n)
+                  i24 = i22 + 5;
+                if (paramInt10 - i24 <= paramInt6 + i23)
+                  break;
+                this.tuftX[this.tuftCount] = this.randomBetween(paramInt6 + i23, paramInt10 - i24, this.a);
+                this.tuftY[this.tuftCount] = paramInt7;
+                this.tuftFlag[this.tuftCount] = this.randomBetween(0, 100, this.a) < 50 ? 1 : 0;
+                this.tuftCount = this.tuftCount + 1;
+              } 
+            } 
+          } 
+        } 
+      } 
+      if (--paramInt1 <= 0)
+        return; 
+      if (!bool3) {
+        if (bool1) {
+          if (i17 >= 0) {
+            bool3 = true;
+            paramInt7 += b2;
+            i17 -= i2;
+          } 
+          paramInt6 += b1;
+          i17 += i1;
+        } else {
+          if (i17 >= 0) {
+            paramInt6 += b1;
+            i17 -= i1;
+          } 
+          paramInt7 += b2;
+          bool3 = true;
+          i17 += i2;
+        }  
+      } 
+      if (!bool4) {
+        if (bool2) {
+          if (i18 >= 0) {
+            bool4 = true;
+            paramInt11 += b4;
+            i18 -= i4;
+          } 
+          paramInt10 += b3;
+          i18 += i3;
+          continue;
+        } 
+        if (i18 >= 0) {
+          paramInt10 += b3;
+          i18 -= i3;
+        } 
+        bool4 = true;
+        paramInt11 += b4;
+        i18 += i4;
+      } 
+    } 
+  }
+
+  facingFromTileBits(paramInt1, paramInt2) {
+    return this.renderSpriteOffset(7, paramInt1, paramInt2, 6) ? (this.renderSpriteOffset(7, paramInt1, paramInt2, 2) ? 3 : 2) : (this.renderSpriteOffset(7, paramInt1, paramInt2, 2) ? 1 : (this.renderSpriteOffset(7, paramInt1, paramInt2, 0) ? 0 : (this.renderSpriteOffset(7, paramInt1, paramInt2, 4) ? 0 : 0)));
   }
   
-  a(paramInt1, paramByte1, paramByte2, paramInt2) {
+  renderSpriteOffset(paramInt1, paramByte1, paramByte2, paramInt2) {
  ;
     let j;
     let l;
@@ -6644,56 +7170,56 @@ export class i extends Screen {
         b1 = 1;
         break;
     } 
-    switch (h) {
-      case false:
-        return (a((paramByte1 + b1), (paramByte2 + b2), 0, 7) === paramInt1);
-      case true:
-        return (a((paramByte1 - b1), (paramByte2 - b2), 0, 7) === paramInt1);
-      case true:
-        return (a((paramByte1 + b2), (paramByte2 - b1), 0, 7) === paramInt1);
-      case true:
-        return (a((paramByte1 - b2), (paramByte2 + b1), 0, 7) === paramInt1);
+    switch (this.h) {
+      case 0:
+        return (this.tileFieldBits((paramByte1 + b1), (paramByte2 + b2), 0, 7) === paramInt1);
+      case 2:
+        return (this.tileFieldBits((paramByte1 - b1), (paramByte2 - b2), 0, 7) === paramInt1);
+      case 4:
+        return (this.tileFieldBits((paramByte1 + b2), (paramByte2 - b1), 0, 7) === paramInt1);
+      case 6:
+        return (this.tileFieldBits((paramByte1 - b2), (paramByte2 + b1), 0, 7) === paramInt1);
     } 
     let b3 = 0;
     let b4 = 0;
     let arrayOfByte1 = null;
     let arrayOfByte2 = null;
-    switch (h) {
-      case true:
+    switch (this.h) {
+      case 0:
         b3 = 1;
         b4 = 3;
-        l = h.b;
-        arrayOfInt = h.f;
+        l = hDirB;
+        arrayOfInt = hDirF;
         break;
-      case true:
+      case 2:
         b3 = 3;
         b4 = 1;
-        b5 = h.c;
-        j = h.g;
+        b5 = hDirC;
+        j = hDirG;
         b1 = -b1;
         b2 = -b2;
         break;
-      case true:
+      case 4:
         b3 = 3;
         b4 = 3;
-        b5 = h.d;
-        j = h.i;
+        b5 = hDirD;
+        j = hDirI;
         b6 = b1;
         b1 = b2;
         b2 = -b6;
         break;
-      case true:
+      case 6:
         b3 = 1;
         b4 = 1;
-        b5 = h.e;
-        j = h.h;
+        b5 = hDirE;
+        j = hDirH;
         b6 = b1;
         b1 = -b2;
         b2 = b6;
         break;
     } 
-    let k = paramByte1 - d + b3;
-    let m = paramByte2 - e + b4;
+    let k = paramByte1 - this.d + b3;
+    let m = paramByte2 - this.e + b4;
     let b7 = -1;
     let b8 = -1;
     let n = j[m][k];
@@ -6740,10 +7266,10 @@ export class i extends Screen {
     } else {
       b2 = 0;
     } 
-    return (a((paramByte1 + b1), (paramByte2 + b2), 0, 7) === paramInt1);
+    return (this.tileFieldBits((paramByte1 + b1), (paramByte2 + b2), 0, 7) === paramInt1);
   }
   
-  f(paramInt) {
+  clampByte(paramInt) {
     if (paramInt > 255) {
       paramInt = 255;
     } else if (paramInt < 0) {
@@ -6752,7 +7278,7 @@ export class i extends Screen {
     return paramInt;
   }
   
-  g() {
+  loadCollisionMap() { /* g */
     let b1 = 0;
     c.a(63);
     b1++;
@@ -6926,14 +7452,14 @@ export class i extends Screen {
     System.gc();
   }
   
-  b(paramByte1, paramByte2) {
+  handleTileField(paramByte1, paramByte2) {
   let j;
   // Llamada a 'a' debe ser con this.a si es método estático de la misma clase
-  if ((j = this.a(paramByte1, paramByte2, 13, 57344)) === 3 || j === -1) {
+  if ((j = this.tileFieldBits(paramByte1, paramByte2, 13, 57344)) === 3 || j === -1) {
     return;
   }
 
-  if (this.a(paramByte1, paramByte2)) {
+  if (this.isTileBlocked(paramByte1, paramByte2)) {
     return;
   }
 
@@ -6958,7 +7484,7 @@ export class i extends Screen {
 }
 
   
-  c(paramByte1, paramByte2) {
+  addToTileListC(paramByte1, paramByte2) {
     if (b(paramByte1, paramByte2))
       return; 
     for (let b = 0; b < C.length; b++) {
@@ -6969,7 +7495,7 @@ export class i extends Screen {
     } 
   }
   
-  w(paramInt) {
+  reservePathTiles(paramInt) {
     if (a(d, e, paramInt))
       return; 
     if (paramInt === 5) {
@@ -7001,7 +7527,7 @@ export class i extends Screen {
       }  
   }
   
-  a(paramByte1, paramByte2) {
+  isTileBlocked(paramByte1, paramByte2) {
     let j;
     if ((j = a(paramByte1, paramByte2, 13, 57344)) === 3 || j === -1)
       return false; 
@@ -7019,7 +7545,7 @@ export class i extends Screen {
     return false;
   }
   
-  b(paramByte1, paramByte2) {
+  isInTileListC(paramByte1, paramByte2) {
     for (let b = 0; b < C.length; b++) {
       if (C[b] === (paramByte1 + paramByte2 * b))
         return true; 
@@ -7027,7 +7553,7 @@ export class i extends Screen {
     return false;
   }
   
-  a(paramInt1, paramInt2, paramInt3) {
+  isInTileSet(paramInt1, paramInt2, paramInt3) {
     if (paramInt3 === 5) {
       for (let b = 0; b < A.length; b++) {
         if (A[b] === (paramInt1 + paramInt2 * b))
@@ -7058,7 +7584,7 @@ export class i extends Screen {
     }
   }
   
-  h() {
+  initParticlePools() {
     a = new f(150, 0, 0, 0, 0, 0, true);
     b = new f(300, 0, 0, 0, 0, 0, false);
     c = new f(80, 0, 8, 0, 0, 0, false);
@@ -7073,7 +7599,7 @@ export class i extends Screen {
     A = 0;
   }
   
-  x(paramInt) {
+  legacyX1(paramInt) {
     switch (A) {
       case 4:
         j = 0;
@@ -7255,7 +7781,7 @@ export class i extends Screen {
     } 
   }
   
-  l(paramGraphics) {
+  legacyLGraphics(paramGraphics) {
     if (A === 0 || c !== null || h || e !== 0 || a(d, e, 13, 57344) === 2 || a(d, e, 13, 57344) === 4)
       return; 
     paramGraphics.setClip(0, 0, 176, 169);
@@ -7299,7 +7825,7 @@ export class i extends Screen {
     paramGraphics.setClip(0, 0, 176, 208);
   }
   
-  a(paramInt1, paramInt2, paramInt3, paramInt4) {
+  storeEntityFixed(paramInt1, paramInt2, paramInt3, paramInt4) {
     let j = paramInt1 >> 14;
     let k = paramInt2 >> 14;
     if (c(j + 18, k) && c(j - 18, k)) {
@@ -7314,7 +7840,7 @@ export class i extends Screen {
     G[paramInt4] = 0;
   }
   
-  y() {
+  clearEntityViews() {
     for (let b = 0; b < 20; b++) {
       s[b] = 0;
       t[b] = 0;
@@ -7322,7 +7848,7 @@ export class i extends Screen {
     Z = 0;
   }
   
-  a(paramInt1, paramByte, paramInt2) {
+  renderWeatherFx(paramInt1, paramByte, paramInt2) {
     let j;
     let k;
     let b;
@@ -7378,7 +7904,7 @@ export class i extends Screen {
     } 
   }
   
-  m(paramGraphics) {
+  renderMarkerOverlay(paramGraphics) {
     paramGraphics.setClip(0, 0, 176, 169);
     let b;
     for (b = 0; b < 10; b++) {
@@ -7416,7 +7942,7 @@ export class i extends Screen {
     } 
   }
   
-  y(paramInt) {
+  advanceFrameCounter(paramInt) {
     if (E === 1) {
       aa += paramInt;
       if (aa > 70) {
@@ -7441,7 +7967,7 @@ export class i extends Screen {
     } 
   }
   
-  b(paramBoolean) {
+  setFlagAo(paramBoolean) {
     ao = paramBoolean;
     E = 1;
   }

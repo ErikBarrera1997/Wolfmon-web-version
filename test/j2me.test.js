@@ -6,6 +6,7 @@ import {
   Font,
   Image,
   RecordStore,
+  Random,
   FACE_MONOSPACE,
   STYLE_BOLD,
   SIZE_SMALL,
@@ -92,4 +93,28 @@ test('RecordStore roundtrip, null on missing store, delete works', () => {
   assert.deepEqual(Array.from(rs.getRecord(0)), [4, 5, 6, 7]);
   RecordStore.deleteRecordStore('teststore');
   assert.equal(RecordStore.openRecordStore('teststore', false), null);
+});
+
+// Reference streams captured from java.util.Random. The 48-bit LCG has to match
+// exactly: entity placement, spawn relocation and animation jitter all read
+// from this generator, so a drifted stream silently mis-places the level.
+test('Random reproduces the java.util.Random 48-bit stream', () => {
+  const r0 = new Random(0);
+  assert.deepEqual(
+    Array.from({ length: 5 }, () => r0.nextInt()),
+    [-1155484576, -723955400, 1033096058, -1690734402, -1557280266],
+  );
+
+  const r42 = new Random(42);
+  assert.deepEqual(Array.from({ length: 2 }, () => r42.nextInt()), [-1170105035, 234785527]);
+
+  // The state must stay inside 48 bits and never collapse to 0/NaN.
+  const r = new Random(123456789);
+  for (let i = 0; i < 10000; i++) {
+    const v = r.nextInt();
+    assert.ok(Number.isInteger(v) && v >= -2147483648 && v <= 2147483647);
+  }
+
+  assert.equal(typeof new Random(0).nextDouble(), 'number');
+  assert.equal(new Random(7).nextInt(10) >= 0, true);
 });

@@ -25,6 +25,7 @@ export {
 } from './Font.js';
 export { Image } from '../images/Image.js';
 export { DataInputStream } from './DataInputStream.js';
+export { Random } from './Random.js';
 export { RecordStore } from './RecordStore.js';
 export { Manager, Player, VolumeControl } from '../../audio/manager.js';
 export {
