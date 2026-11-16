@@ -1,0 +1,237 @@
+document:
+  title: "Sprite rendering flow"
+  language: en
+  subject: "Sprites drawn by src/game/i.js"
+  purpose: >
+    Explain how the game's render passes select sprites, how src/resources/c.js
+    resolves their metadata and atlas, and how Graphics clips and draws them
+    on the canvas.
+  scope:
+    included:
+      - sprite render order during a frame
+      - sprite families used by terrain, entities, and the minimap
+      - atlas loading and sprite ID resolution
+      - clipping and missing-resource diagnostics
+    excluded:
+      - complete inventory of all game IDs
+      - rendering of gradients and primitives that do not use sprites
+
+sources:
+  game_port: "../src/game/i.js"
+  original_java: "../src/game/i.java"
+  resource_facade: "../src/game/c.js"
+  resource_implementation: "../src/resources/c.js"
+  asset_loader: "../src/resources/loader.js"
+  graphics_shim: "../src/images/Graphics.js"
+  image_decoder: "../src/images/Image.js"
+  atlas_catalog_asset: "../assets/h"
+  resource_groups_asset: "../assets/g"
+
+overview:
+  frame_entry:
+    - "paintScreen(g)"
+    - "_paintEntry(g)"
+    - "_renderAll(g, true)"
+  render_order:
+    - order: 1
+      stage: "Terrain and sky"
+      method: "_renderTerrainInner(g)"
+      sprite_content:
+        - "Profile/sky, compass, and terrain decoration sprites."
+        - "Ground sprites drawn by _drawTerrainColumnInner()."
+        - "House and object prefabs traversed by drawHouseLayer()."
+    - order: 2
+      stage: "General overlay"
+      method: "_renderOverlay(g)"
+      status: "Empty stub in the current port."
+    - order: 3
+      stage: "Entity pass 1"
+      method: "_renderEntitiesInner(1, g)"
+      behavior: "Dispatches _drawEntityClip() for the columns."
+    - order: 4
+      stage: "Entity pass 0"
+      method: "_renderEntitiesInner(0, g)"
+      behavior: "In the current code, repeats the same clipping dispatch as pass 1."
+    - order: 5
+      stage: "Entity pass 2"
+      method: "_renderEntitiesInner(2, g)"
+      behavior: >
+        Dispatches _drawEntityMask(): clips again, then attempts to draw the
+        object/shadow, animation, and overlay.
+    - order: 6
+      stage: "Minimap"
+      method: "_renderMinimapInner(g)"
+      behavior: "Draws the minimap tiles and the player's indicator sprite."
+  important_distinction: >
+    Not everything visible is a sprite: _drawTileGradient() and
+    renderTileColumn16() draw gradients with setColor()/drawLine(); the
+    shadows in _drawEntityObject() are built from Graphics primitives.
+
+sprite_resource_pipeline:
+  initialization:
+    - "resources.init() allocates the resource cache and the table of 417 sprite rows."
+    - "loadGroups() reads the groups from assets/g."
+    - "getCatalog() reads resource offsets, names, and lengths from assets/h."
+    - "loadResources(groupId) parses the resources in the requested group."
+  asset_loading:
+    source: "loadAssetBytes(name)"
+    behavior:
+      - "Uses fetch in the browser and node:fs in Node."
+      - "Resolves names under assets/ and caches the bytes."
+  atlas_parsing:
+    behavior:
+      - "For sprite resources, parseResource() reads the sprite ID range."
+      - "Each sprite records six metadata shorts and the atlas resource ID."
+      - "The atlas PNG content is decoded through Image.decodePNG()."
+    sprite_row:
+      index_0: "sprite X offset within the atlas"
+      index_1: "sprite Y offset within the atlas"
+      index_2: "visible rectangle width"
+      index_3: "visible rectangle height"
+      index_4: "X anchor used to position the rectangle"
+      index_5: "Y anchor used to position the rectangle"
+      index_6: "ID of the resource containing the atlas image"
+  drawing:
+    entry: "drawSprite(spriteId, x, y, g)"
+    steps:
+      - "Looks up spriteRows[spriteId]; if absent, records the missing row and returns."
+      - "Gets the atlas image from resources[row[6]]; if it is not loaded, records the missing image and returns."
+      - "Calculates the visible on-screen rectangle using x/y, anchors, and width/height."
+      - "Temporarily clips Graphics to the visible rectangle."
+      - "Draws the full atlas image with the sprite offset."
+      - "Restores the clip Graphics had before drawing."
+    draw_call: >
+      g.drawImage(image, x - anchorX - offsetX, y - anchorY - offsetY, 20)
+    clipping_note: >
+      Clipping leaves the corresponding sprite visible even though the entire
+      atlas is drawn. A separate image is not created for each sprite.
+  unloading:
+    method: "unloadGroup(groupId)"
+    behavior: >
+      Removes the group's images and rows pointing to those atlases from the
+      cache; those rows are unavailable until the resource is loaded again.
+
+game_sprite_routes:
+  terrain:
+    entry: "_renderTerrainInner(g)"
+    routes:
+      sky_and_scene:
+        behavior: >
+          Based on the profile derived from the time and game state, the port
+          selects sprites from families 360-374 for scene elements, the compass,
+          and the sky.
+        examples:
+          - "360-373: variants associated with the scene state and angle."
+          - "374: scene element drawn according to the profile."
+      ground_columns:
+        method: "_drawTerrainColumnInner(tileX, tileY, x, y, width, height, band, g)"
+        behavior:
+          - "Reads the tile type and selects a base from 159, 174, 189, and 204 using hGroundProb."
+          - "Calculates the visible sprite and its position for each segment of the column."
+          - "Draws the sprite using cRes.drawSprite()."
+          - "For water tiles, calculates intersections to clip the columns."
+        positioning: "May apply small deterministic variations to x/y."
+      prefab_layers:
+        method: "drawHouseLayer(x, y, prefabId, g)"
+        data: "hPrefabs: consecutive triples (dx, dy, spriteId)."
+        behavior:
+          - "Finds the prefab's list of triples."
+          - "Skips negative IDs."
+          - "Draws each sprite at x+dx, y+dy."
+  entities:
+    entry: "_renderEntitiesInner(pass, g)"
+    columns:
+      near: 5
+      far: 3
+      dispatch:
+        pass_1: "_drawEntityClip(...)"
+        pass_0: "_drawEntityClip(...)"
+        pass_2: "_drawEntityMask(...)"
+    clipping:
+      method: "_drawEntityClip(...)"
+      behavior: >
+        Checks the associated tile and splits the rectangle when it crosses the
+        clipping boundary. renderCell20() transforms bounds using the day/night
+        tables and ends at renderTileColumn16(), which draws gradient lines;
+        this path does not draw the entity sprite itself.
+    mask_pass:
+      method: "_drawEntityMask(...)"
+      receives: "(tileX, tileY, x, y, width, height, columnKind, g)"
+      substeps:
+        - "Calls _drawEntityClip() again."
+        - >
+          Calls _drawEntityObject() for the geometric shadow; queries sprite
+          metadata 262/263 to size it.
+        - >
+          If paramInt4===66 and this.h.a!==null, attempts _playEntityAnim();
+          in this signature, paramInt4 is height, not columnKind.
+        - >
+          Calls _drawEntityOverlay(); the arguments in that call do not match
+          those the helper treats as the type and tile.
+    overlay_sprite_ids:
+      house_or_object:
+        base: [266, 267, 268]
+        secondary: [357, 358, 359]
+        selection: "Depends on the type and the queried tile bits."
+  minimap:
+    method: "_renderMinimapInner(g)"
+    behavior:
+      - "Draws the minimap tiles."
+      - "Draws the player marker using cRes.drawSprite(this.g[this.h], ...)."
+
+resource_facade:
+  module: "src/game/c.js"
+  role: "Thin facade that forwards calls to src/resources/c.js."
+  relevant_methods:
+    - "init()"
+    - "loadResources(groupId)"
+    - "unloadGroup(groupId)"
+    - "getSpriteData(spriteId, index)"
+    - "drawSprite(spriteId, x, y, g)"
+  rule: >
+    Keep catalog, atlas, metadata, and drawing logic in
+    src/resources/c.js; do not add it to the facade.
+
+diagnostics:
+  toggle: "__WM_DEBUG_DRAW"
+  default: false
+  behavior:
+    - "Enables periodic sprite traces with ID, coordinates, offsets, size, and atlas."
+    - "Accumulates IDs without rows and unloaded atlases, and periodically summarizes them."
+  interpretation:
+    missing_row: "The ID has no metadata in spriteRows, or its row was unloaded."
+    missing_image: "The row exists, but resources[row[6]] does not contain an image."
+  limits: >
+    drawSprite() returns without drawing when the row or image is missing. The
+    diagnostic logger is off by default; some callers also catch errors without
+    propagating them.
+
+known_issues:
+  - id: "entity-animation-helper"
+    status: "guard and helper are incompatible in the port"
+    detail: >
+      _drawEntityMask() recibe height en paramInt4 y columnKind en paramInt5,
+      but tests paramInt4===66. Therefore, the current pass does not activate
+      the animation branch using the column type. Also, _playEntityAnim() ends
+      up calling a(...) without qualifying the helper; a is a declared but
+      uninitialized module variable. If this path is reached, the call fails
+      and the catch may hide the error.
+  - id: "entity-overlay-arguments"
+    status: "argument mismatch in the port"
+    detail: >
+      _drawEntityMask() passes width/height and only one tile coordinate to
+      _drawEntityOverlay(), while the helper treats those arguments as the type
+      and tile coordinates. Overlay sprite selection may be incorrect or may
+      produce no drawing.
+  - id: "silent-resource-misses"
+    status: "current behavior"
+    detail: >
+      A missing sprite row or atlas image causes a return without drawing.
+      Enabling __WM_DEBUG_DRAW lets you distinguish the two cases in the console.
+
+maintenance:
+  - "Do not convert sprite IDs into file paths: they are resolved through the catalog and atlas rows."
+  - "For a blank image, check the spriteRows entry first, then resources[row[6]]."
+  - "When changing coordinates, verify anchors and clipping; drawSprite receives the sprite's logical position."
+  - "Keep gradient/primitive documentation separate: those paths do not go through drawSprite()."
+  - "The decompiled Java source retains obfuscated names; identify overloads by signature and body."

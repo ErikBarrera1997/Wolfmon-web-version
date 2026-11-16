@@ -853,13 +853,13 @@ isDaytime() { /* aCheck */
     this.z = false;
     if (this.F !== 0) {
       if (this.E === 0 && this.u === 0) {
-        this.bSub(true);
+        this.legacySubNoop(true);
       } else if (this.u !== 0) {
         this.calcAmbientByHour();
         this.writeSaveRecord();
         this.F = 0;
         this.u = 0;
-        this.bSub(false);
+        this.legacySubNoop(false);
       }
     }
 
@@ -873,9 +873,9 @@ isDaytime() { /* aCheck */
           }
         }
         if (bool) {
-          this.bSub(true);
+          this.legacySubNoop(true);
         } else {
-          this.legacyX0();
+          this.legacyDialogAdvance();
         }
       } else if (this.w === true) {
         this.T += paramInt;
@@ -887,7 +887,7 @@ isDaytime() { /* aCheck */
         this.T += paramInt;
         if (this.T > 300) {
           this.T = false;
-          this.bSub(false);
+          this.legacySubNoop(false);
         }
       }
     }
@@ -906,11 +906,11 @@ isDaytime() { /* aCheck */
 
     if (!this.j && !this.g) {
       this.g = true;
-      this.bStep(false, null);
-      this.bStep(true, this.a);
+      this.legacyPaintDelegatingNoop(false, null);
+      this.legacyPaintDelegatingNoop(true, this.a);
       this.tickPortalEffects();
     } else if (this.z !== null) {
-      this.bStep(true, this.a);
+      this.legacyPaintDelegatingNoop(true, this.a);
     }
 
     this.handleEntityPrompt(true, this.a);
@@ -923,12 +923,12 @@ isDaytime() { /* aCheck */
     }
 
     if (this.G !== null) {
-      if (this.w === true) this.legacyX0();
+      if (this.w === true) this.legacyDialogAdvance();
     } else {
-      this.legacyX0();
+      this.legacyDialogAdvance();
     }
 
-    this.legacyX1(paramInt);
+    this.legacyNpcMove(paramInt);
     this.M += paramInt;
     if (this.M > 300) {
       this.M = false;
@@ -1197,7 +1197,7 @@ isDaytime() { /* aCheck */
             this.showMessageDialog(165, null, 32);
           }
         }
-        if ((b2 !== this.d || b3 !== this.e) && this.bCheck(b2, b3)) {
+        if ((b2 !== this.d || b3 !== this.e) && this.canUseCurrentItemStub(b2, b3)) {
           this._dbgStep = 'move(' + b2 + ',' + b3 + ',h=' + this.h + ')';
           dbgR('updateEntities move', { from: [this.d, this.e], to: [b2, b3], h: this.h, d: this.D });
           this.hero.d();
@@ -1223,8 +1223,8 @@ isDaytime() { /* aCheck */
               this.t[this.S] = this.e;
               this.g = false;
               this.updateWeatherParticles(1);
-              this.n();
-              this.bPaint(null);
+              this.scanEntityInteraction();
+              this.legacyPaintNoop(null);
               return;
             }
             this.showMessageDialog(116, null, 32);
@@ -1245,13 +1245,13 @@ isDaytime() { /* aCheck */
             if (this.I !== 0 && this.D === 0) {
               this.D = 1;
               this.r = 9;
-              this.tAction(216);
-              if (!this.Q) this.tAction(122);
+              this.fieldEventStub(216);
+              if (!this.Q) this.fieldEventStub(122);
               if (this.H !== 0) {
                 if (this.O) {
-                  this.tAction(220);
+                  this.fieldEventStub(220);
                 } else {
-                  this.tAction(219);
+                  this.fieldEventStub(219);
                 }
               }
             }
@@ -1261,7 +1261,7 @@ isDaytime() { /* aCheck */
                 this.showMessageDialog(75, null, 32);
                 this.M = true;
               }
-              if (this.bTile(this.d, this.e, 20) || j === 4) {
+              if (this.legacyEntityLookupB(this.d, this.e, 20) || j === 4) {
                 for (let i = 0; i < this.w.length; i++) {
                   if (this.z[i] === 2 && this.w[i] === 20) {
                     this.selectItemSlot(16);
@@ -1286,17 +1286,17 @@ isDaytime() { /* aCheck */
             this.updateWeatherParticles(1);
             this.updateEntityTimers(1);
             if (this.m === -1) {
-              this.aFunc(this.prevX, this.g);
-              this.jAction(1);
-              this.rAction();
-              this.sAction();
+              this.partyTickStub(this.prevX, this.g);
+              this.stepCounterStub(1);
+              this.randomEncounterStub();
+              this.stepSoundStub();
             }
-            this.n();
+            this.scanEntityInteraction();
             if (this.m === -1) {
-              this.iMethod();
-              this.lMethod();
+              this.inventoryRefreshStub();
+              this.partyRefreshStub();
             }
-            this.bPaint(null);
+            this.legacyPaintNoop(null);
             if (this.w === null && this.N + 48 <= this.z && this.t === null && this.r === null && this.C === 0) {
               this.w = true;
               this.showMessageDialog(230, null, 58);
@@ -1318,7 +1318,7 @@ isDaytime() { /* aCheck */
           this.z = 1;
           this.r = -1;
           this.h = b1;
-          this.bPaint(null);
+          this.legacyPaintNoop(null);
           return;
         }
       }
@@ -1332,7 +1332,7 @@ isDaytime() { /* aCheck */
         } else if (this.o === this.p && (this.l === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && this.m === -1 && this.readTileBits(this.d, this.e, 0, 7) !== 7) {
           if (this.C !== 0) {
             this.showMessageDialog(224, null, -1);
-          } else if ((k === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && !this.aTileCheck(this.d, this.e, 5)) {
+          } else if ((k === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && !this.legacyEntityLookupA(this.d, this.e, 5)) {
             this.showMessageDialog(95, null, 32);
             this.F = 1;
             this.u = 0;
@@ -1357,12 +1357,12 @@ isDaytime() { /* aCheck */
       } else {
         if (this.bCam[5] !== null) {
           this.bCam[5] = null;
-          this.hMove(-1);
+          this.cursorMoveStub(-1);
           return;
         }
         if (this.bCam[6] !== null) {
           this.bCam[6] = null;
-          this.hMove(1);
+          this.cursorMoveStub(1);
           return;
         }
       }
@@ -1415,7 +1415,7 @@ isDaytime() { /* aCheck */
     }
   }
 
-  static bCheck() {
+  static canUseCurrentItemStub() {
     return true;
   }
 
@@ -1467,12 +1467,12 @@ isDaytime() { /* aCheck */
     let j = this.o * 2;
     let k = this.readTileBits(this.d, this.e, 13, 57344);
     if (this.o === this.p && (this.l === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && this.m === -1 && this.readTileBits(this.d, this.e, 0, 7) !== 7) {
-      return this.C !== 0 ? false : (((k === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && !this.aTileCheck(this.d, this.e, 5)));
+      return this.C !== 0 ? false : (((k === null || this.c !== null || this.e !== 0 || k === 2 || k === 4) && !this.legacyEntityLookupA(this.d, this.e, 5)));
     }
     if (this.e === 0 || this.A[j] === 4 || this.A[j] === 3 || this.A[j] === 6 || this.A[j] === 9 || this.A[j] === 5) {
       switch (this.A[j]) {
         case 25:
-          return ((this.B === 5 || this.B === 4) && this.l !== null && this.C !== 0) ? false : ((this.l === null && this.bTile(this.d, this.e, 7, 0) && b !== null) ? true : (this.l !== null));
+          return ((this.B === 5 || this.B === 4) && this.l !== null && this.C !== 0) ? false : ((this.l === null && this.legacyEntityLookupB(this.d, this.e, 7, 0) && b !== null) ? true : (this.l !== null));
         case 2:
         case 22:
           return (this.l !== null && b > 0 && this.B !== 5);
@@ -1482,18 +1482,18 @@ isDaytime() { /* aCheck */
           return (this.B === 5 && this.l !== null && b > 0);
         case 1:
         case 8:
-          return (this.l !== null && this.B !== 5) ? true : ((this.l === null && this.bTile(this.d, this.e, 5, 0)));
+          return (this.l !== null && this.B !== 5) ? true : ((this.l === null && this.legacyEntityLookupB(this.d, this.e, 5, 0)));
         case 20:
-          return (j && b > 0 && this.B === 0) ? true : ((this.l === null && b > 0 && this.aTileCheck(this.d, this.e, 0) && this.c !== null));
+          return (j && b > 0 && this.B === 0) ? true : ((this.l === null && b > 0 && this.legacyEntityLookupA(this.d, this.e, 0) && this.c !== null));
         case 14:
-          return (j && b > 0 && (this.B === 1 || this.B === 2 || this.B === 3)) ? true : ((this.l === null && b > 0 && this.C < 100 && (this.bTile(this.d, this.e, 1, 1) || (this.bTile(this.d, this.e, 3, 1) && this.c !== null))));
+          return (j && b > 0 && (this.B === 1 || this.B === 2 || this.B === 3)) ? true : ((this.l === null && b > 0 && this.C < 100 && (this.legacyEntityLookupB(this.d, this.e, 1, 1) || (this.legacyEntityLookupB(this.d, this.e, 3, 1) && this.c !== null))));
         case 24:
           return (j && b > 0 && (this.B === 4 || this.B === 5)) ? true : ((b > 0 && this.d !== 0 && k === 4));
         case 12:
           if ((k === 2 || k === 4) && b > 0 && this.d === 0) return true;
           if (this.l === null && b > 0) {
-            if (this.bTile(this.d, this.e, 1, 0)) return true;
-            if (this.c !== null && this.bTile(this.d, this.e, 3, 0)) return true;
+            if (this.legacyEntityLookupB(this.d, this.e, 1, 0)) return true;
+            if (this.c !== null && this.legacyEntityLookupB(this.d, this.e, 3, 0)) return true;
           }
           return false;
         case 3:
@@ -1506,15 +1506,15 @@ isDaytime() { /* aCheck */
         case 16:
           return ((k === 2 || k === 4) && this.d === 0);
         case 10:
-          return (this.aTileCheck(this.d, this.e, 6) && this.l === null);
+          return (this.legacyEntityLookupA(this.d, this.e, 6) && this.l === null);
         case 7:
           return (this.d !== 0 && k === 4 && this.x === 3);
         case 13:
-          return (this.l === null && this.aTileCheck(this.d, this.e, 2));
+          return (this.l === null && this.legacyEntityLookupA(this.d, this.e, 2));
         case 4:
-          return (this.aTileCheck(this.d, this.e, 2) && (!j || this.e !== 0));
+          return (this.legacyEntityLookupA(this.d, this.e, 2) && (!j || this.e !== 0));
         case 11:
-          return ((this.l === null || this.c !== null) && b > 0 && (this.bTile(this.d, this.e, 1, 1) || this.bTile(this.d, this.e, 3, 1)) && this.l < this.h.g.length);
+          return ((this.l === null || this.c !== null) && b > 0 && (this.legacyEntityLookupB(this.d, this.e, 1, 1) || this.legacyEntityLookupB(this.d, this.e, 3, 1)) && this.l < this.h.g.length);
         case 15:
           return (this.l === null && this.R !== -1 && this.t[this.R] !== -1);
         default:
@@ -1532,7 +1532,7 @@ isDaytime() { /* aCheck */
       j = 30 - this.i;
     }
     if (j > 8) j = 8;
-    this.jValue(j);
+    this.statValueStub(j);
     let k = this.readTileBits(this.d, this.e, 13, 57344);
     let m = j;
     this.o = 0;
@@ -1543,25 +1543,25 @@ isDaytime() { /* aCheck */
         m += j;
         this.d = 0;
       }
-      if (this.bTile(this.d, this.e, 1, 1) || (this.bTile(this.d, this.e, 3, 1) && this.c !== null)) m += j;
+      if (this.legacyEntityLookupB(this.d, this.e, 1, 1) || (this.legacyEntityLookupB(this.d, this.e, 3, 1) && this.c !== null)) m += j;
     }
     this.gainEnergy(m);
     let b;
     for (b = 0; b < this.h.length; b++) {
-      if (this.o[b] === this.readTileBits(this.d, this.e, 9, 7680) && this.h[b] === 5) this.mAction(b);
+      if (this.o[b] === this.readTileBits(this.d, this.e, 9, 7680) && this.h[b] === 5) this.entityActionStub(b);
     }
-    this.uAction(j);
+    this.ambientTimerStub(j);
     this.updateEntityTimers(j);
-    this.sAction();
+    this.stepSoundStub();
     for (b = 0; b < this.h.length; b++) {
       if (this.h[b] !== 4 && this.h[b] !== 5) {
         this.aCam[b] = true;
-        this.rAction(b);
+        this.randomEncounterStub(b);
       }
     }
     k = false;
     this.g = false;
-    this.bPaint(null);
+    this.legacyPaintNoop(null);
     if (this.C === 0) {
       let arrayOfString = [String(j)];
       this.showMessageDialog(71, arrayOfString, -1);
@@ -1604,33 +1604,33 @@ isDaytime() { /* aCheck */
     return this.tileData[y * this.mapW + x] & paramInt2;
   }
 
-  static bPaint() {}
+  static legacyPaintNoop() {}
 
-  static bSub(paramBoolean) {}
+  static legacySubNoop(paramBoolean) {}
 
-  static bStep(paramBoolean, paramGraphics) {
-    this.bPaint(paramGraphics);
+  static legacyPaintDelegatingNoop(paramBoolean, paramGraphics) {
+    this.legacyPaintNoop(paramGraphics);
   }
 
-  static bSet(paramInt, paramByte1, paramByte2) {}
+  static legacySetEntityNoop(paramInt, paramByte1, paramByte2) {}
 
-  static bCk(paramByte1, paramByte2) {
+  static legacyTilePassableNoop(paramByte1, paramByte2) {
     return true;
   }
 
-  static bTile(paramByte1, paramByte2, paramInt1, paramInt2) {
+  static legacyEntityLookupB(paramByte1, paramByte2, paramInt1, paramInt2) {
     return false;
   }
 
-  static aTileCheck(paramByte1, paramByte2, paramInt1, paramInt2) {
+  static legacyEntityLookupA(paramByte1, paramByte2, paramInt1, paramInt2) {
     return false;
   }
 
-  static bTileCheck(paramByte1, paramByte2, paramInt1, paramInt2) {
+  static legacyEntityLookupBStrict(paramByte1, paramByte2, paramInt1, paramInt2) {
     return false;
   }
 
-  static aTileMatch(paramByte1, paramByte2, paramInt) {
+  static legacyEntityLookupAAny(paramByte1, paramByte2, paramInt) {
     return false;
   }
 
@@ -1729,7 +1729,7 @@ isDaytime() { /* aCheck */
     }
   }
 
-  static n() {
+  static scanEntityInteraction() {
     return; // [port-gap] entity-interaction scan disabled (s/t/r/u/v/B arrays collide with scalars); enable when entity system is ported
     this.l = false;
     this.B = -1;
@@ -1856,7 +1856,7 @@ isDaytime() { /* aCheck */
                 this.al = true;
               }
             }
-            this.legacyD2(b, 0);
+            this.legacyPortalRegistryUpdate(b, 0);
             this.reservePathTiles(1);
           } else if (this.r[b] === 0) {
             if (this.X === 0) {
@@ -2040,7 +2040,7 @@ isDaytime() { /* aCheck */
       }
     }
     this.B = -1;
-    this.n();
+    this.scanEntityInteraction();
   }
   
   static itemMessageStub(paramInt, paramByte1, paramByte2) {
@@ -2191,7 +2191,7 @@ isDaytime() { /* aCheck */
     this.playPickupSound();
   }
   
-  static legacyR0() {
+  static runEntityAiForCurrentTile() {
     if (this.s === null) {
       this.k = false;
       let b;
@@ -2222,14 +2222,14 @@ isDaytime() { /* aCheck */
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       if (this.isDaytime()) {
         if (this.k !== null) {
-          this.bSet(paramInt, this.prevX, this.g);
+          this.legacySetEntityNoop(paramInt, this.prevX, this.g);
           return;
         }
         this.wanderEntity(paramInt);
         return;
       }
       if (this.addItemToInventory(paramInt, 1)) {
-        this.bSet(paramInt, this.f[0], this.f[1]);
+        this.legacySetEntityNoop(paramInt, this.f[0], this.f[1]);
         this.tileFieldBits(this.i[paramInt], this.j[paramInt], 1, 1);
         return;
       }
@@ -2251,7 +2251,7 @@ isDaytime() { /* aCheck */
           return;
         }
         if (this.k !== null) {
-          this.bSet(paramInt, this.prevX, this.g);
+          this.legacySetEntityNoop(paramInt, this.prevX, this.g);
           return;
         }
         this.wanderEntity(paramInt);
@@ -2264,14 +2264,14 @@ isDaytime() { /* aCheck */
       if (!this.isDaytime()) {
         if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
         if (this.k !== null) {
-          this.bSet(paramInt, this.prevX, this.g);
+          this.legacySetEntityNoop(paramInt, this.prevX, this.g);
         } else {
           this.wanderEntity(paramInt);
         }
         if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
         if (this.randomBetween(0, 100, this.a) <= 50) {
           if (this.k !== null) {
-            this.bSet(paramInt, this.prevX, this.g);
+            this.legacySetEntityNoop(paramInt, this.prevX, this.g);
             return;
           }
           this.wanderEntity(paramInt);
@@ -2310,7 +2310,7 @@ isDaytime() { /* aCheck */
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       if (this.tileFieldBits(this.i[paramInt], this.j[paramInt], this.prevX, this.g)) {
-        this.bSet(paramInt, this.prevX, this.g);
+        this.legacySetEntityNoop(paramInt, this.prevX, this.g);
       } else if (this.isDaytime() || this.h[paramInt] === 2) {
         this.wanderEntity(paramInt);
       }
@@ -2451,7 +2451,7 @@ isDaytime() { /* aCheck */
   }
   
   static canPlaceEntity(paramByte1, paramByte2, paramInt) {
-    if (!this.bCk(paramByte1, paramByte2)) return false;
+    if (!this.legacyTilePassableNoop(paramByte1, paramByte2)) return false;
     if (this.tileFieldBits(paramByte1, paramByte2, 0, 7) === 7) return false;
     if (this.tileFieldBits(paramByte1, paramByte2, 0, 7) === 6) return false;
 // i.java:7687-7695 keeps the per-entity sprite id in 'o' and the per-entity
@@ -3756,7 +3756,7 @@ isDaytime() { /* aCheck */
   static renderRegion(paramInt1, paramInt2) {
     if (paramInt2 <= 103)
       return false; 
-    if (a(d, e, 0, 7) !== 7)
+    if (this.tileFieldBits(d, e, 0, 7) !== 7)
       return false; 
     let bool = false;
     let j = 0;
@@ -3778,9 +3778,9 @@ isDaytime() { /* aCheck */
       n = (hNightBounds[0][i3 * 4 + 2] * 10 << 8) / 1000 * 176 >> 8;
     } 
     if (m !== n)
-      j = a(0, paramInt2, paramInt1 + 176, paramInt2, m, 103, n, 169); 
+      j = this._lineIntersect(0, paramInt2, paramInt1 + 176, paramInt2, m, 103, n, 169); 
     if (i1 !== i2)
-      k = a(0, paramInt2, paramInt1 + 176, paramInt2, i1, 103, i2, 169); 
+      k = this._lineIntersect(0, paramInt2, paramInt1 + 176, paramInt2, i1, 103, i2, 169); 
     return (j === -1 || k === -1) ? false : (!(paramInt1 < j || paramInt1 > k));
   }
   
@@ -3954,13 +3954,13 @@ isDaytime() { /* aCheck */
     let k = 0;
     let m = 0;
     let n = 0;
-    j = a(paramInt5, paramInt6, 0, 7);
+    j = this.tileFieldBits(paramInt5, paramInt6, 0, 7);
     if (!paramBoolean) {
-      k = a(paramInt5, paramInt6, 5, 480);
-    } else if ((k = a((paramInt5 + 1), paramInt6, 5, 480)) === -1 || k === 6) {
+      k = this.tileFieldBits(paramInt5, paramInt6, 5, 480);
+    } else if ((k = this.tileFieldBits((paramInt5 + 1), paramInt6, 5, 480)) === -1 || k === 6) {
       k = 0;
     } 
-    n = a(paramInt5, paramInt6, 13, 57344);
+    n = this.tileFieldBits(paramInt5, paramInt6, 13, 57344);
     let bool1 = b(paramInt5, paramInt6, 5, 0);
     let bool2 = b(paramInt5, paramInt6, 5, 2);
     if (n === 2 || n === 4)
@@ -3970,7 +3970,7 @@ isDaytime() { /* aCheck */
     } else {
       return;
     } 
-    if (paramBoolean && a(0, 100, c) < 65)
+    if (paramBoolean && this.randomBetween(0, 100, c) < 65)
       return; 
     let i1 = 0;
     let i2 = 0;
@@ -4041,15 +4041,15 @@ isDaytime() { /* aCheck */
       } 
       if (f1 === b) {
         if ((n === 1 || n === 0) && c === null) {
-          a(i1, i2, paramInt4, paramInt5, paramInt6, paramGraphics);
+          this._drawEntityOverlay(i1, i2, paramInt4, paramInt5, paramInt6, paramGraphics);
         } else if (bool1) {
-          a(i1, i2, paramInt4, paramInt5, paramInt6, paramGraphics, false);
+          this._playEntityAnim(i1, i2, paramInt4, paramInt5, paramInt6, paramGraphics, false);
         } else if (bool2) {
-          a(i1, i2, paramInt4, paramInt5, paramInt6, paramGraphics, true);
+          this._playEntityAnim(i1, i2, paramInt4, paramInt5, paramInt6, paramGraphics, true);
         } 
       } else if (j === 5 || j === 2 || bool || paramBoolean) {
-        if (paramBoolean && a(0, 100, c) < 30) {
-          if (a(0, 100, c) < 30) {
+        if (paramBoolean && this.randomBetween(0, 100, c) < 30) {
+          if (this.randomBetween(0, 100, c) < 30) {
             if (!bool3) {
               c.a(i1, i2, a(b), paramGraphics);
             } else {
@@ -4091,15 +4091,15 @@ isDaytime() { /* aCheck */
   }
   
   static _randomArrayEl(paramArrayOfshort) {
-    return paramArrayOfshort[a(0, paramArrayOfshort.length - 1, c)];
+    return paramArrayOfshort[this.randomBetween(0, paramArrayOfshort.length - 1, c)];
   }
   
   static _drawEntityHouse(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics) {
     let j;
-    if ((j = a(paramInt5, paramInt6, 0, 7)) !== 6)
+    if ((j = this.tileFieldBits(paramInt5, paramInt6, 0, 7)) !== 6)
       return; 
-    let k = paramInt1 + (paramInt3 >> 1) + a(-3, 3, b);
-    let m = paramInt2 + (paramInt4 >> 1) + a(-1, 1, b);
+    let k = paramInt1 + (paramInt3 >> 1) + this.randomBetween(-3, 3, b);
+    let m = paramInt2 + (paramInt4 >> 1) + this.randomBetween(-1, 1, b);
     if (paramInt4 === 20) {
       if ((i >= 19 && i <= 23) || (i >= null && i <= 4)) {
         c.a(k, m, 264, paramGraphics);
@@ -4170,14 +4170,14 @@ isDaytime() { /* aCheck */
       for (let b = -1; b < 2; b++) {
         b1 = (b1 + 1);
         if (d + b2 >= 0 && d + b2 < b && e + b >= 0 && e + b < c && (b2 !== 0 || b !== 0)) {
-          let j = a((d + b2), (e + b), 13, 57344);
+          let j = this.tileFieldBits((d + b2), (e + b), 13, 57344);
           if (b((d + b2), (e + b), 1, 1) && m === -1) {
             if (!paramBoolean) {
               let arrayOfString;
               (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
               C[b1] = 104;
               if (!d(f[0], 0))
-                a(100, arrayOfString, 75); 
+                this.showMessageDialog(100, arrayOfString, 75); 
             } else {
               c.a((d + b2 - s) * 9 + 4, (e + b - t) * 9 + 4, 104, paramGraphics);
             } 
@@ -4187,8 +4187,8 @@ isDaytime() { /* aCheck */
               (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
               C[b1] = 100;
               if (!d(f[0], 0))
-                a(96, arrayOfString, 73); 
-              c((d + b2), (e + b));
+                this.showMessageDialog(96, arrayOfString, 73); 
+              this.addToTileListC((d + b2), (e + b));
               t[b1] = 201;
             } else {
               c.a((d + b2 - s) * 9 + 4, (e + b - t) * 9 + 4, 100, paramGraphics);
@@ -4199,8 +4199,8 @@ isDaytime() { /* aCheck */
               (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
               C[b1] = 100;
               if (!d(f[0], 0))
-                a(127, arrayOfString, 73); 
-              c((d + b2), (e + b));
+                this.showMessageDialog(127, arrayOfString, 73); 
+              this.addToTileListC((d + b2), (e + b));
             } else {
               c.a((d + b2 - s) * 9 + 4, (e + b - t) * 9 + 4, 100, paramGraphics);
             } 
@@ -4210,8 +4210,8 @@ isDaytime() { /* aCheck */
               (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
               C[b1] = -1;
               if (!d(f[0], 0))
-                a(226, arrayOfString, 73); 
-              c((d + b2), (e + b));
+                this.showMessageDialog(226, arrayOfString, 73); 
+              this.addToTileListC((d + b2), (e + b));
             } else {
               c.a((d + b2 - s) * 9 + 4, (e + b - t) * 9 + 4, 100, paramGraphics);
             } 
@@ -4220,8 +4220,8 @@ isDaytime() { /* aCheck */
               let arrayOfString;
               (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
               C[b1] = -1;
-              a(97, arrayOfString, 72);
-              b((d + b2), (e + b));
+              this.showMessageDialog(97, arrayOfString, 72);
+              this.isInTileListC((d + b2), (e + b));
             } else {
               if (j === 0 || j === 1) {
                 c.a((d + b2 - s) * 9 + 4, (e + b - t) * 9 + 4, 97, paramGraphics);
@@ -4229,13 +4229,13 @@ isDaytime() { /* aCheck */
                 c.a((d + b2 - s) * 9 + 4, (e + b - t) * 9 + 4, 98, paramGraphics);
               } 
               if ((g[d + b2 + (e + b) * b] & 0x2) === 0)
-                b((d + b2 - s) * 9, (e + b - t) * 9, 9, paramGraphics); 
+                this._drawRectOutline((d + b2 - s) * 9, (e + b - t) * 9, 9, paramGraphics); 
             } 
           } else {
             for (let b3 = 0; b3 < h.length; b3++) {
               if (i[b3] === d + b2 && j[b3] === e + b && a[b3] !== null) {
-                let k = a(d, e, 0, 7);
-                let m = a((d + b2), (e + b), 0, 7);
+                let k = this.tileFieldBits(d, e, 0, 7);
+                let m = this.tileFieldBits((d + b2), (e + b), 0, 7);
                 let arrayOfString;
                 (arrayOfString = new String[1])[0] = c.a(hColorThresholds[a[b + 1][b2 + 1]]);
                 switch (h[b3]) {
@@ -4245,7 +4245,7 @@ isDaytime() { /* aCheck */
                       if (!paramBoolean) {
                         C[b1] = 100;
                         if (!d(b3, 2))
-                          a(84, arrayOfString, 73); 
+                          this.showMessageDialog(84, arrayOfString, 73); 
                         if (!h[b3]) {
                           t[b1] = 103;
                           break;
@@ -4260,10 +4260,10 @@ isDaytime() { /* aCheck */
                     if (!paramBoolean) {
                       C[b1] = 101;
                       if (!d(b3, 2))
-                        a(188, arrayOfString, 34); 
+                        this.showMessageDialog(188, arrayOfString, 34); 
                       t[b1] = 104;
                       if (h.e !== 0 && !ai) {
-                        a(197, null, -1);
+                        this.showMessageDialog(197, null, -1);
                         ai = true;
                       } 
                       break;
@@ -4274,10 +4274,10 @@ isDaytime() { /* aCheck */
                     if (!paramBoolean) {
                       C[b1] = 101;
                       if (!d(b3, 2))
-                        a(93, arrayOfString, 29); 
+                        this.showMessageDialog(93, arrayOfString, 29); 
                       t[b1] = 105;
                       if (h.e !== 0 && !af) {
-                        a(194, null, -1);
+                        this.showMessageDialog(194, null, -1);
                         af = true;
                       } 
                       break;
@@ -4289,7 +4289,7 @@ isDaytime() { /* aCheck */
                       if (!paramBoolean) {
                         C[b1] = 100;
                         if (!d(b3, 2))
-                          a(84, arrayOfString, 73); 
+                          this.showMessageDialog(84, arrayOfString, 73); 
                         t[b1] = 106;
                         break;
                       } 
@@ -4300,7 +4300,7 @@ isDaytime() { /* aCheck */
                     if (!paramBoolean) {
                       C[b1] = 101;
                       if (!d(b3, 2))
-                        a(94, arrayOfString, 35); 
+                        this.showMessageDialog(94, arrayOfString, 35); 
                       t[b1] = 110;
                       break;
                     } 
@@ -4310,7 +4310,7 @@ isDaytime() { /* aCheck */
                     if (!paramBoolean) {
                       C[b1] = 101;
                       if (!d(b3, 2))
-                        a(99, arrayOfString, 68); 
+                        this.showMessageDialog(99, arrayOfString, 68); 
                       t[b1] = 107;
                       break;
                     } 
@@ -4320,7 +4320,7 @@ isDaytime() { /* aCheck */
                     if (!paramBoolean) {
                       C[b1] = 101;
                       if (!d(b3, 2))
-                        a(98, arrayOfString, 68); 
+                        this.showMessageDialog(98, arrayOfString, 68); 
                       t[b1] = 108;
                       break;
                     } 
@@ -4336,7 +4336,7 @@ isDaytime() { /* aCheck */
     } 
   }
   
-  static legacyD2(paramInt1, paramInt2) {
+  static legacyPortalRegistryUpdate(paramInt1, paramInt2) {
     // Byte code:
     //   0: iload_1
     //   1: tableswitch default -> 178, 0 -> 28, 1 -> 103, 2 -> 106
@@ -4430,7 +4430,7 @@ isDaytime() { /* aCheck */
     //   179: ireturn
   }
   
-  static tInit() {
+  static tickPortalTimers() {
     // Byte code:
     //   0: iconst_0
     //   1: istore_0
@@ -4531,12 +4531,12 @@ isDaytime() { /* aCheck */
   
   static _getTerrainColorSimple(paramByte1, paramByte2) {
     let j;
-    return d(j = a(paramByte1, paramByte2, 0, 7));
+    return this._terrainTypeColor(this.tileFieldBits(paramByte1, paramByte2, 0, 7));
   }
   
   static _getTerrainColorAt(paramByte1, paramByte2, paramBoolean1, paramBoolean2) {
     let j;
-    return a(j = a(paramByte1, paramByte2, 0, 7), paramBoolean1, paramBoolean2);
+    return this._getTerrainColor(this.tileFieldBits(paramByte1, paramByte2, 0, 7), paramBoolean1, paramBoolean2);
   }
   
   static _terrainTypeColor(paramInt) {
@@ -4598,7 +4598,7 @@ isDaytime() { /* aCheck */
   static _drawMinimapTile(paramByte1, paramByte2, paramInt1, paramInt2, paramGraphics) {
     let j = 0;
     if ((g[paramByte1 + paramByte2 * b] & true) !== 0) {
-      j = a(paramByte1, paramByte2);
+      j = this._getTerrainColorSimple(paramByte1, paramByte2);
     } else {
       j = 0;
     } 
@@ -4608,10 +4608,10 @@ isDaytime() { /* aCheck */
     paramGraphics.setColor(j);
     paramGraphics.fillRect((paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9, 9, 9);
     if ((g[paramByte1 + paramByte2 * b] & true) !== 0) {
-      paramGraphics.setColor(f(k += k >> 2), f(m += m >> 2), f(n += n >> 2));
+      paramGraphics.setColor(this.clampByte(k += k >> 2), this.clampByte(m += m >> 2), this.clampByte(n += n >> 2));
       paramGraphics.drawLine((paramByte1 - paramInt1) * 9 + 1, (paramByte2 - paramInt2) * 9, (paramByte1 - paramInt1) * 9 + 9 - 1, (paramByte2 - paramInt2) * 9);
       paramGraphics.drawLine((paramByte1 - paramInt1) * 9 + 9 - 1, (paramByte2 - paramInt2) * 9, (paramByte1 - paramInt1) * 9 + 9 - 1, (paramByte2 - paramInt2) * 9 + 9 - 2);
-      paramGraphics.setColor(f(k - (k >> 1)), f(m - (m >> 1)), f(n - (n >> 1)));
+      paramGraphics.setColor(this.clampByte(k - (k >> 1)), this.clampByte(m - (m >> 1)), this.clampByte(n - (n >> 1)));
       paramGraphics.drawLine((paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9 + 9 - 1, (paramByte1 - paramInt1) * 9 + 9 - 2, (paramByte2 - paramInt2) * 9 + 9 - 1);
       paramGraphics.drawLine((paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9 + 1, (paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9 + 9 - 2);
     } 
@@ -4620,7 +4620,7 @@ isDaytime() { /* aCheck */
       if (x[b] === paramByte1 + paramByte2 * b) {
         c.a((paramByte1 - paramInt1) * 9 + 4, (paramByte2 - paramInt2) * 9 + 4, 97, paramGraphics);
         if ((g[paramByte1 + paramByte2 * b] & 0x2) === 0)
-          b((paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9, 9, paramGraphics); 
+          this._drawRectOutline((paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9, 9, paramGraphics); 
         return;
       } 
     } 
@@ -4628,7 +4628,7 @@ isDaytime() { /* aCheck */
       if (y[b] === paramByte1 + paramByte2 * b) {
         c.a((paramByte1 - paramInt1) * 9 + 4, (paramByte2 - paramInt2) * 9 + 4, 98, paramGraphics);
         if ((g[paramByte1 + paramByte2 * b] & 0x2) === 0)
-          b((paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9, 9, paramGraphics); 
+          this._drawRectOutline((paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9, 9, paramGraphics); 
         return;
       } 
     } 
@@ -4636,7 +4636,7 @@ isDaytime() { /* aCheck */
       if (A[b] === paramByte1 + paramByte2 * b) {
         c.a((paramByte1 - paramInt1) * 9 + 4, (paramByte2 - paramInt2) * 9 + 4, 103, paramGraphics);
         if ((g[paramByte1 + paramByte2 * b] & 0x2) === 0)
-          b((paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9, 9, paramGraphics); 
+          this._drawRectOutline((paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9, 9, paramGraphics); 
         return;
       } 
     } 
@@ -4644,7 +4644,7 @@ isDaytime() { /* aCheck */
       if (z[b] === paramByte1 + paramByte2 * b) {
         c.a((paramByte1 - paramInt1) * 9 + 4, (paramByte2 - paramInt2) * 9 + 4, 102, paramGraphics);
         if ((g[paramByte1 + paramByte2 * b] & 0x2) === 0)
-          b((paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9, 9, paramGraphics); 
+          this._drawRectOutline((paramByte1 - paramInt1) * 9, (paramByte2 - paramInt2) * 9, 9, paramGraphics); 
         return;
       } 
     } 
@@ -4717,9 +4717,9 @@ isDaytime() { /* aCheck */
     } 
     let i8 = i3 + (i4 - i3 >> 1) - (j << 1);
     let bool2 = false;
-    c(i8, 191, i7, paramGraphics);
+    this._drawNumber(i8, 191, i7, paramGraphics);
     c.a(i8 + 2 + j, 191, 232, paramGraphics);
-    c(i8 + j * 4, 191, 100, paramGraphics);
+    this._drawNumber(i8 + j * 4, 191, 100, paramGraphics);
     let b;
     for (b = (h % 2 === 0) ? 1 : 0; b < 8; b += 2)
       c.a(176 - i1 + i[b][0], 170 + i[b][1], 215, paramGraphics); 
@@ -4730,28 +4730,28 @@ isDaytime() { /* aCheck */
     if (o === p) {
       c.a(40, 189, 58, paramGraphics);
       if (!b()) {
-        b(170, paramGraphics);
+        this._drawCompassMark(170, paramGraphics);
         return;
       } 
     } else {
       c.a(40, 189, h.b[A[o * 2]], paramGraphics);
       let i9 = -1;
       if (!b()) {
-        b(170, paramGraphics);
+        this._drawCompassMark(170, paramGraphics);
       } else if (A[o * 2] === 25) {
-        i9 = c(25);
+        i9 = this.calcItemEffect(25);
       } else if (A[o * 2] === 8) {
-        i9 = c(8);
+        i9 = this.calcItemEffect(8);
       } else if (A[o * 2] === 1) {
-        i9 = c(1);
+        i9 = this.calcItemEffect(1);
       } else if (A[o * 2] === 22) {
-        i9 = c(22);
+        i9 = this.calcItemEffect(22);
       } else if (A[o * 2] === 2) {
-        i9 = c(2);
+        i9 = this.calcItemEffect(2);
       } 
       let i10 = 0 + k - 29;
       if (A[o * 2] !== 8 && A[o * 2] !== 1 && A[o * 2] !== 23 && A[o * 2] !== 16 && A[o * 2] !== 4 && A[o * 2] !== 25 && A[o * 2] !== 13 && A[o * 2] !== 10 && A[o * 2] !== 17 && A[o * 2] !== 15) {
-        c(i10 + ((A[o * 2 + 1] < 10) ? j : 0), 193, A[o * 2 + 1], paramGraphics);
+        this._drawNumber(i10 + ((A[o * 2 + 1] < 10) ? j : 0), 193, A[o * 2 + 1], paramGraphics);
         i10 -= (A[o * 2 + 1] < 10) ? j : (j << 1);
       } 
       if (i9 > -1)
@@ -4794,7 +4794,7 @@ isDaytime() { /* aCheck */
   }
   
   static _renderTerrainOverlay(paramGraphics) {
-    let j = a(d, e, 0, 7);
+    let j = this.tileFieldBits(d, e, 0, 7);
     if (r !== -1 && (j === 0 || j === 3 || j === 7) && c === null && e === 0) {
       let k;
       if ((k = 1000 * (600 - r) * 255 / 600 / 1000) > 255)
@@ -4841,19 +4841,19 @@ isDaytime() { /* aCheck */
       let i8 = x[b1] / b;
       c.a((i4 = x[b1] % b) * j + i2 + (j >> 1), i8 * j + i3 + (j >> 1), 97, paramGraphics);
       if ((g[i4 + i8 * b] & 0x2) === 0)
-        b(i4 * j + i2 + (j >> 1) - 4, i8 * j + i3 + (j >> 1) - 4, 9, paramGraphics); 
+        this._drawRectOutline(i4 * j + i2 + (j >> 1) - 4, i8 * j + i3 + (j >> 1) - 4, 9, paramGraphics); 
     } 
     for (b1 = 0; b1 < y.length && y[b1] !== -1; b1++) {
       let i8 = y[b1] / b;
       c.a((i4 = y[b1] % b) * j + i2 + (j >> 1), i8 * j + i3 + (j >> 1), 98, paramGraphics);
       if ((g[i4 + i8 * b] & 0x2) === 0)
-        b(i4 * j + i2 + (j >> 1) - 4, i8 * j + i3 + (j >> 1) - 4, 9, paramGraphics); 
+        this._drawRectOutline(i4 * j + i2 + (j >> 1) - 4, i8 * j + i3 + (j >> 1) - 4, 9, paramGraphics); 
     } 
     for (b1 = 0; b1 < A.length && A[b1] !== -1; b1++) {
       let i8 = A[b1] / b;
       c.a((i4 = A[b1] % b) * j + i2 + (j >> 1), i8 * j + i3 + (j >> 1), 103, paramGraphics);
       if ((g[i4 + i8 * b] & 0x2) === 0)
-        b(i4 * j + i2 + (j >> 1) - 4, i8 * j + i3 + (j >> 1) - 4, 9, paramGraphics); 
+        this._drawRectOutline(i4 * j + i2 + (j >> 1) - 4, i8 * j + i3 + (j >> 1) - 4, 9, paramGraphics); 
       w[b] = (i4 + i8 * b);
       b = (b + 1);
     } 
@@ -4861,7 +4861,7 @@ isDaytime() { /* aCheck */
       let i8 = z[b1] / b;
       c.a((i4 = z[b1] % b) * j + i2 + (j >> 1), i8 * j + i3 + (j >> 1), 102, paramGraphics);
       if ((g[i4 + i8 * b] & 0x2) === 0)
-        b(i4 * j + i2 + (j >> 1) - 4, i8 * j + i3 + (j >> 1) - 4, 9, paramGraphics); 
+        this._drawRectOutline(i4 * j + i2 + (j >> 1) - 4, i8 * j + i3 + (j >> 1) - 4, 9, paramGraphics); 
       w[b] = (i4 + i8 * b);
       b = (b + 1);
     } 
@@ -4908,14 +4908,14 @@ isDaytime() { /* aCheck */
     if (C === 0 && I === 0 && m === -1 && h.a !== null)
       c.a(i2 + n - 7, i6 + 2, 87, paramGraphics); 
     let i7;
-    c(i7 = i2 + 15, i6, i, paramGraphics);
+    this._drawNumber(i7 = i2 + 15, i6, i, paramGraphics);
     c.a(i7 += (i > 9) ? 6 : 3, i6, 234, paramGraphics);
     i7 += 2;
     c.a(i7, i6, 231, paramGraphics);
     i7 += 4;
     c.a(i7, i6, 231, paramGraphics);
     if (C === 0 && I === 0 && m === -1 && h.a !== null)
-      c(i2 + n - 20, i6, 30 - A, paramGraphics); 
+      this._drawNumber(i2 + n - 20, i6, 30 - A, paramGraphics); 
     if (j !== 1)
       a(i2, i3, n, i1 + 15, paramGraphics); 
   }
@@ -4997,20 +4997,20 @@ isDaytime() { /* aCheck */
               if (hDayBounds[h][b3] === b2 && hDayBounds[h][b3 + 1] === b) {
                 let k = 0 + H + 7 + 10;
                 if (h === a[b + 1][b2 + 1]) {
-                  a(88 - (w >> 1), k - (x >> 1), w, x, false, 0, paramGraphics);
-                  j = e(C[b1]);
+                  this._drawUIFrame(88 - (w >> 1), k - (x >> 1), w, x, false, 0, paramGraphics);
+                  j = this.spriteRowForId(C[b1]);
                   c.a(88, k, j, paramGraphics);
                   R = b1;
                   break;
                 } 
                 if ((h < a[b + 1][b2 + 1] || (h === 7 && a[b + 1][b2 + 1] === null)) && (h || a[b + 1][b2 + 1] !== 7)) {
-                  a(146 - (w >> 1), k - (x >> 1), w, x, false, 0, paramGraphics);
-                  j = e(C[b1]);
+                  this._drawUIFrame(146 - (w >> 1), k - (x >> 1), w, x, false, 0, paramGraphics);
+                  j = this.spriteRowForId(C[b1]);
                   c.a(146, k, j, paramGraphics);
                   break;
                 } 
-                a(29 - (w >> 1), k - (x >> 1), w, x, false, 0, paramGraphics);
-                j = e(C[b1]);
+                this._drawUIFrame(29 - (w >> 1), k - (x >> 1), w, x, false, 0, paramGraphics);
+                j = this.spriteRowForId(C[b1]);
                 c.a(29, k, j, paramGraphics);
                 break;
               } 
@@ -5049,9 +5049,9 @@ isDaytime() { /* aCheck */
         } 
         if (i2 > 0 || (c[b] !== null && D > 0 && D > 600))
           if (j) {
-            a(n, i1, u, v, true, 11468800, paramGraphics);
+            this._drawUIFrame(n, i1, u, v, true, 11468800, paramGraphics);
           } else {
-            a(n, i1, u, v, false, 0, paramGraphics);
+            this._drawUIFrame(n, i1, u, v, false, 0, paramGraphics);
           }  
         if (b < k) {
           if (i2 > 0 || (c[b] !== null && D > 0 && D > 600)) {
@@ -5120,7 +5120,7 @@ isDaytime() { /* aCheck */
           let m = k - (u >> 1) + b * (u + y);
           let n = j - (v >> 1);
           if (e === 0 && r[B[b]] !== 5) {
-            a(m, n, u, v, false, 0, paramGraphics);
+            this._drawUIFrame(m, n, u, v, false, 0, paramGraphics);
             c.a(k + b * (u + y), j, h.d[r[B[b]]], paramGraphics);
             let i1 = -1;
             switch (r[B[b]]) {
@@ -5201,17 +5201,17 @@ isDaytime() { /* aCheck */
     } 
   }
   // [port-gap] stubs for systems not yet ported (party AI, steps/encounters, stats, timers).
-  static aFunc() {}
-  static jAction() {}
-  static rAction() {}
-  static sAction() {}
-  static tAction() {}
-  static hMove() {}
-  static mAction() {}
-  static uAction() {}
-  static jValue() {}
-  static iMethod() {}
-  static lMethod() {}
+  static partyTickStub() {}
+  static stepCounterStub() {}
+  static randomEncounterStub() {}
+  static stepSoundStub() {}
+  static fieldEventStub() {}
+  static cursorMoveStub() {}
+  static entityActionStub() {}
+  static ambientTimerStub() {}
+  static statValueStub() {}
+  static inventoryRefreshStub() {}
+  static partyRefreshStub() {}
   writeInt(paramArrayOfbyte, paramInt1, paramInt2) {
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 24 & 0xFF);
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 16 & 0xFF);
@@ -6619,7 +6619,7 @@ isDaytime() { /* aCheck */
     an = false;
   }
   
-  legacyF0() {
+  legacyAdvanceDialogTimer() {
     // Byte code:
     //   0: getstatic i.t : I
     //   3: ifle -> 136
@@ -6685,7 +6685,7 @@ isDaytime() { /* aCheck */
     //   136: return
   }
   
-  legacyX0() {
+  legacyDialogAdvance() {
     if (t > null) {
       let b;
       for (b = 0; b < d.length && d[b] < 0; b++);
@@ -7384,9 +7384,9 @@ isDaytime() { /* aCheck */
       y[b9] = arrayOfByte[b1++];
       z[b9] = 1;
       let k;
-      if ((k = a(x[b9], y[b9], 13, 57344)) === 0 || k === 1)
+      if ((k = this.tileFieldBits(x[b9], y[b9], 13, 57344)) === 0 || k === 1)
         while (true) {
-          let m = a(0, b2 - 1, a);
+          let m = this.randomBetween(0, b2 - 1, a);
           if (arrayOfShort[m] !== -1) {
             x[b9] = (arrayOfShort[m] % b);
             y[b9] = (arrayOfShort[m] / b);
@@ -7422,7 +7422,7 @@ isDaytime() { /* aCheck */
     b10 = 0;
     for (j = 0; j < r.length; j++) {
       if (r[j] === 5) {
-        arrayOfInt[b10] = a(s[j], t[j], 9, 7680);
+        arrayOfInt[b10] = this.tileFieldBits(s[j], t[j], 9, 7680);
         b10++;
       } 
     } 
@@ -7485,7 +7485,7 @@ isDaytime() { /* aCheck */
 
   
   addToTileListC(paramByte1, paramByte2) {
-    if (b(paramByte1, paramByte2))
+    if (this.isInTileListC(paramByte1, paramByte2))
       return; 
     for (let b = 0; b < C.length; b++) {
       if (C[b] === -1) {
@@ -7496,7 +7496,7 @@ isDaytime() { /* aCheck */
   }
   
   reservePathTiles(paramInt) {
-    if (a(d, e, paramInt))
+    if (this.isInTileSet(d, e, paramInt))
       return; 
     if (paramInt === 5) {
       for (let b = 0; b < A.length; b++) {
@@ -7529,7 +7529,7 @@ isDaytime() { /* aCheck */
   
   isTileBlocked(paramByte1, paramByte2) {
     let j;
-    if ((j = a(paramByte1, paramByte2, 13, 57344)) === 3 || j === -1)
+    if ((j = this.tileFieldBits(paramByte1, paramByte2, 13, 57344)) === 3 || j === -1)
       return false; 
     if (j === 1 || j === 0) {
       for (let b = 0; b < x.length; b++) {
@@ -7599,7 +7599,7 @@ isDaytime() { /* aCheck */
     A = 0;
   }
   
-  legacyX1(paramInt) {
+  legacyNpcMove(paramInt) {
     switch (A) {
       case 4:
         j = 0;
@@ -7781,12 +7781,12 @@ isDaytime() { /* aCheck */
     } 
   }
   
-  legacyLGraphics(paramGraphics) {
-    if (A === 0 || c !== null || h || e !== 0 || a(d, e, 13, 57344) === 2 || a(d, e, 13, 57344) === 4)
+  renderEntityOverlayGraphics(paramGraphics) {
+    if (A === 0 || c !== null || h || e !== 0 || this.tileFieldBits(d, e, 13, 57344) === 2 || this.tileFieldBits(d, e, 13, 57344) === 4)
       return; 
     paramGraphics.setClip(0, 0, 176, 169);
     let j;
-    if ((j = a(d, e, 0, 7)) === 0 || j === 3 || j === 7) {
+    if ((j = this.tileFieldBits(d, e, 0, 7)) === 0 || j === 3 || j === 7) {
       if ((i >= 19 && i <= 23) || (i >= null && i <= 4)) {
         paramGraphics.setColor(1118498);
       } else {
@@ -7818,7 +7818,7 @@ isDaytime() { /* aCheck */
     } 
     for (b = 0; b <= a.f; b++) {
       if (p[b] !== 0 && q[b] !== 0 && G[b] < 6) {
-        paramGraphics.setColor(a(7, true, false));
+        paramGraphics.setColor(this._getTerrainColor(7, true, false));
         paramGraphics.drawArc(p[b] - r[b] - G[b], q[b] - r[b] - (G[b] >> 1), G[b] * 2 + r[b], G[b] + r[b], 0, 360);
       } 
     } 
@@ -7861,12 +7861,12 @@ isDaytime() { /* aCheck */
           c.b = 18;
           c.c = 4096;
           for (let m = -(u - 4) >> 2; m < u - 2 >> 2; m++)
-            c.a(1, j + m * 2 + a(-1, 1, a), k + m * 1 + a(-1, 1, a), 1, 2, 0, 1, 500, 0); 
+            c.a(1, j + m * 2 + this.randomBetween(-1, 1, a), k + m * 1 + this.randomBetween(-1, 1, a), 1, 2, 0, 1, 500, 0); 
           return;
         } 
         if (paramInt1 + (paramInt1 + 1) * paramInt2 < 10) {
-          j += a(-u >> 2, u >> 2, a);
-          k += a(-v >> 2, v >> 2, a);
+          j += this.randomBetween(-u >> 2, u >> 2, a);
+          k += this.randomBetween(-v >> 2, v >> 2, a);
           s[paramInt1 + (paramInt1 + 1) * paramInt2] = j;
           t[paramInt1 + (paramInt1 + 1) * paramInt2] = k;
           return;
@@ -7879,9 +7879,9 @@ isDaytime() { /* aCheck */
         for (b = -8; b < 2; b++) {
           for (let b1 = 0; b1 < 3; b1++) {
             let m;
-            if ((m = 44 + (paramInt1 + b) * 3 + a(-1, 1, a)) > 132)
+            if ((m = 44 + (paramInt1 + b) * 3 + this.randomBetween(-1, 1, a)) > 132)
               return; 
-            c.a(1, m, 42 + (paramInt1 + b) * 2 + a(-1, 1, a) + b1 * 21, 1, 2, 0, 1, 500, 0);
+            c.a(1, m, 42 + (paramInt1 + b) * 2 + this.randomBetween(-1, 1, a) + b1 * 21, 1, 2, 0, 1, 500, 0);
           } 
         } 
         return;
@@ -7932,7 +7932,7 @@ isDaytime() { /* aCheck */
     paramGraphics.setClip(0, 0, 176, 208);
   }
   
-  nCaveDraw(paramGraphics) {
+  renderCaveInterior(paramGraphics) {
     if (E === 0)
       return; 
     let j = ao ? (296 - D) : (291 + D);

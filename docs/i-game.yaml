@@ -1,0 +1,707 @@
+document:
+  title: "Main screen comparative documentation"
+  language: en
+  subject: "src/game/i.js y src/game/i.java"
+  purpose: >
+    Describe the responsibilities of the game class, the input, update, and
+    rendering flow, and the correspondences and divergences between the
+    JavaScript implementation and its Java reference source.
+  scope:
+    included:
+      - screen lifecycle
+      - game updates
+      - world, entities, and inventory
+      - terrain, entity, and HUD rendering
+      - known port differences
+    excluded:
+      - complete specification of game rules
+      - documentation for helper classes
+      - source code modifications
+
+sources:
+  original:
+    path: "../src/game/i.java"
+    language: java
+    role: "Decompiled original reference source; read-only."
+    caveat: >
+      Method and field names are obfuscated and reused across overloads. To
+      identify a routine, consider its signature, arguments, and context,
+      not just its single-letter name.
+  migration:
+    path: "../src/game/i.js"
+    language: javascript
+    role: "Game port for the repository's browser runtime."
+    caveat: >
+      Combines routines and state into a single class that belonged to
+      several inner classes in Java. Some fields were renamed to distinguish
+      meanings that shared a letter in the decompiled code.
+  related:
+    screen_base: "../src/game/p.js"
+    runtime: "../src/game/m.js"
+    resource_facade: "../src/resources/c.js"
+    j2me_random: "../src/j2me/Random.js"
+    existing_flow_notes: "./i-js-flow.md"
+
+class:
+  java:
+    name: "i"
+    extends: "p"
+    role: "Main J2ME game screen."
+    rendering_api: "javax.microedition.lcdui.Graphics"
+  javascript:
+    export: "i"
+    extends: "Screen"
+    role: "Game screen on the fixed 176x208 canvas."
+    rendering_api: "Graphics from the project's J2ME shim"
+  porting_conventions:
+    - >
+      Many Java routines are represented by static methods in `i.js` and are
+      invoked as `i.method.call(this, ...)` to operate on the instance state.
+    - >
+      Java files are behavioral references, not inputs to runtime execution
+      or the build.
+    - >
+      Single-letter Java names can be ambiguous after classes are merged;
+      descriptive JS names generally serve as functional aliases, not as
+      names from the original source.
+
+responsibilities:
+  - "Maintain game and player state."
+  - "Read and modify tiles, collisions, and world objects."
+  - "Update entities, the clock, timers, particles, and effects."
+  - "Manage inventory, health, energy, pickups, and persistence."
+  - "Draw terrain, sky, entities, the minimap, and interface elements."
+
+lifecycle:
+  constructor:
+    javascript: "i.constructor()"
+    behavior:
+      - "Calls the Screen constructor."
+      - "Initializes state through resetGameState()."
+  screen_entry:
+    javascript: "i.screenEntered()"
+    behavior: >
+      The hook is present, but startup and the main game loading are coordinated
+      by the runtime and game engine.
+  input:
+    javascript: "i.keyPressed(code)"
+    behavior:
+      - "Clears the previous movement-key state."
+      - "Maps J2ME codes to bCam positions for movement and actions."
+      - "Code 5 requests pause/menu through the event queue."
+      - "Code 13 activates the branch associated with bCam[8]."
+  update:
+    javascript: "i.update(dt)"
+    sequence:
+      - "updateAmbientParticles(dt)"
+      - "updatePlacementState(dt)"
+      - "Accumulates dt and advances the clock by calling advanceClock(1)."
+      - "updateEntities()"
+      - "If __WM_DEBUG_AUTOMOVE is active, forces bCam[0]."
+    tick_rate:
+      when_C_is_zero_ms: 16
+      otherwise_ms: 800
+    error_handling: >
+      Several stages are isolated with try/catch and write warnings to the
+      console; other render helpers catch exceptions without logging them.
+  timers:
+    javascript: "i.advanceTimers(dt)"
+    behavior: "Advances gameplay timers through a path separate from update()."
+
+render_pipeline:
+  entry:
+    javascript: "i.paintScreen(g)"
+    steps:
+      - "Sets the canvas clip to 176x208 and clears the background."
+      - "Calls i._paintEntry.call(this, g)."
+      - "Draws the HUD if __WM_DEBUG_HUD is not false."
+  main_frame:
+    javascript: "i._renderAll(g, true)"
+    steps:
+      - "Renders the terrain and sky."
+      - "Runs entity passes in the order 1, 0, and 2."
+      - "Renders the minimap."
+      - "With __WM_DEBUG_TUFTS, resets and draws diagnostic points."
+  terrain:
+    javascript:
+      - "i._renderTerrainInner(g)"
+      - "i._drawTileGradient(...)"
+    behavior:
+      - "Selects a scene profile based on the in-game time."
+      - "Calculates colors and draws gradients with Graphics lines."
+      - "At night, may draw stars and sky marks."
+      - "Draws horizon elements and terrain columns."
+  entities:
+    javascript: "i._renderEntitiesInner(pass, g)"
+    behavior:
+      - "Traverses five near columns and three additional columns."
+      - "Derives tile coordinates from the player's position and h."
+      - "Passes 1 and 0 both call _drawEntityClip."
+      - "Pass 2 calls _drawEntityMask."
+      - "Then draws the horizon terrain column."
+    entity_helpers:
+      clipping: "i._drawEntityClip(...)"
+      mask_object_overlay: "i._drawEntityMask(...)"
+      object_shadow: "i._drawEntityObject(...)"
+      overlay: "i._drawEntityOverlay(...)"
+      animation: "i._playEntityAnim(...)"
+  interface:
+    methods:
+      - "i._renderMinimap(...)"
+      - "i._renderUIBar(...)"
+      - "i._renderActionIcons(...)"
+      - "i._renderInventory(...)"
+      - "i._renderFullMinimap(...)"
+      - "i._drawCompassMark(...)"
+      - "i._drawNumber(...)"
+
+java_to_javascript:
+  lifecycle:
+    - java: "i()"
+      javascript: "constructor() + resetGameState()"
+      purpose: "Construction and state initialization."
+    - java: "keyPressed(int)"
+      javascript: "keyPressed(code)"
+      purpose: "J2ME keyboard input."
+    - java: "update(int)"
+      javascript: "update(dt)"
+      purpose: "Game update."
+    - java: "paintScreen(Graphics)"
+      javascript: "paintScreen(g)"
+      purpose: "Drawing entry point."
+    - java: "resetGameState()"
+      javascript: "resetGameState()"
+      purpose: "Game state reset."
+  world_and_gameplay:
+    - java: "readTileBits(byte, byte, int, int)"
+      javascript: "readTileBits(...) / tileFieldBits(...)"
+      purpose: "Read encoded fields from a tile."
+    - java: "loadTileData()"
+      javascript: "loadTileData()"
+      purpose: "Prepare tile and node data."
+    - java: "loadWorldData()"
+      javascript: "loadWorldData()"
+      purpose: "Load world data."
+    - java: "randomInt(int, int, Random)"
+      javascript: "randomInt(lo, hi, rng)"
+      purpose: "Choose a random integer."
+    - java: "obfuscated movement and collision helpers"
+      javascript: "wanderEntity(), stepEntity(), canPlaceEntity(), isWalkable()"
+      purpose: "Movement and position validation."
+    - java: "obfuscated inventory and item helpers"
+      javascript: "addItemToInventory(), removeItemFromInventory(), updatePickups()"
+      purpose: "Inventory, pickups, and their effects."
+  rendering:
+    - java: "d(Graphics)"
+      javascript: "_renderTerrainInner(g)"
+      purpose: "Main terrain/sky rendering; correspondence inferred from body and usage."
+    - java: "a(int, Graphics)"
+      javascript: "_renderEntitiesInner(pass, g)"
+      purpose: "Column traversal and pass dispatch."
+    - java: "a(byte, byte, int, int, int, int, int, Graphics)"
+      javascript: "_drawEntityClip(...)"
+      purpose: "Entity drawing clipped to bands."
+    - java: "b(byte, byte, int, int, int, int, int, Graphics)"
+      javascript: "_drawEntityMask(...)"
+      purpose: "Mask pass, object, and additional layers."
+    - java: "a(int, int, int, int, int, int, Graphics)"
+      javascript: "_drawEntityObject(...)"
+      purpose: "Draw the object/shadow associated with an entity."
+    - java: "a(int, int, int, int, int, Graphics)"
+      javascript: "_drawEntityOverlay(...)"
+      purpose: "Entity overlay; the Java overload is identified by its body."
+    - java: "a(int, int, int, int, int, Graphics, boolean)"
+      javascript: "_playEntityAnim(...)"
+      purpose: "Special animation selection."
+    - java: "a(int, int, int, int, int, int, int, int, int, int, int, int, int, Graphics, int, boolean)"
+      javascript: "renderTileColumn16(...)"
+      purpose: "Color gradient by scanline."
+  note: >
+    In Java, many of the names above are overloads of a/b/c/d. The signature
+    distinguishes the routine; descriptive JS labels alone do not prove full
+    behavioral equivalence.
+
+state_model:
+  player_and_camera:
+    fields:
+      - "d, e: the player's current map coordinates."
+      - "h: numeric heading/facing used to calculate visible columns."
+      - "bCam: key/action states mapped from keyPressed()."
+      - "i: in-game time or time state."
+  world:
+    fields:
+      - "u, v, eArr, pFlag: buffers used for tiles, terrain, and visible data."
+      - "mapW, mapH, and associated arrays: map dimensions and state."
+      - "nodeX, nodeY, nodeKind, and related fields: world nodes/entities."
+  gameplay:
+    fields:
+      - "A: storage for inventory items/values and related state."
+      - "C, F, m, and other fields: gameplay modes and states; their meanings depend on the flow."
+      - "a: the instance's J2ME Random used by randomBetween()."
+      - "fxN, fxD, fxO, fxE: timed effect records in the port."
+  render_tables:
+    fields:
+      - "hDayBounds and hNightBounds: render bounds by orientation."
+      - "hPrefabs: lists of triples (dx, dy, spriteId) for terrain."
+      - "hColorThresholds: color palettes/thresholds used by terrain profiles."
+      - "hDirB..hDirI and hGroundProb: helper tables ported from Java class h."
+  warning: >
+    Do not interpret an isolated letter as a stable identity: the decompiler
+    reuses fields across inner classes, and the port sometimes had to
+    disambiguate them with names such as aSeed, aTiles, fFlag, prevX, and tuftX.
+
+world_and_gameplay_areas:
+  tiles_and_collision:
+    methods:
+      - "readTileBits(...)"
+      - "tileFieldBits(...)"
+      - "isWalkable(...)"
+      - "canPlaceEntity(...)"
+      - "isTileBlocked(...)"
+      - "isInTileSet(...)"
+      - "loadCollisionMap(...)"
+  entities:
+    methods:
+      - "updateEntities()"
+      - "updateEntityTimers(dt)"
+      - "wanderEntity(index)"
+      - "stepEntity(index, dx, dy, ...)"
+      - "faceEntityTowards(index, x, y)"
+      - "randomizeEntityPosition(index)"
+  items_and_health:
+    methods:
+      - "addItemToInventory(...)"
+      - "removeItemFromInventory(...)"
+      - "selectItemSlot(...)"
+      - "isConsumablesFull()"
+      - "_calcHealth(...)"
+      - "gainEnergy(...)"
+      - "grantRandomLoot(...)"
+      - "updatePickups()"
+  save_data:
+    methods:
+      - "writeSaveRecord()"
+      - "calcScore()"
+      - "writeIntBigEndian(...)"
+      - "readIntBigEndian(...)"
+      - "readShortBigEndian(...)"
+      - "readBoolean(...)"
+    storage: "RecordStore, mediated by the m.js runtime."
+
+known_port_differences:
+  - id: "sky-boundary"
+    severity: "visual-conditional"
+    status: "divergence-visible-in-source"
+    java: >
+      The decompiled Java initializer documents I=93 and J=I*40/100=37.
+      The clipping code and the two bands use H+J; with H=76, the resulting
+      limit is 113 and the sky bands extend to y=169.
+    javascript: >
+      resetGameState() sets H=76 and skyBand=169-H=93. _drawEntityClip()
+      uses H+skyBand=169 as the clipping boundary.
+    impact: >
+      These expressions are not equivalent. The effect depends on an entity
+      crossing that boundary; do not assume the port preserves Java's geometry.
+  - id: "animation-helper-reference"
+    severity: "render"
+    status: "confirmed-in-source"
+    javascript: >
+      _playEntityAnim() invokes a(...) without qualification; a is declared as
+      an uninitialized module variable. renderRegion() also retains calls to
+      bare helpers such as a(...). These paths fail when executed, and some
+      callers swallow the exception.
+    impact: "Special animations and drawing associated with renderRegion may not appear."
+  - id: "entity-overlay-arguments"
+    severity: "render"
+    status: "confirmed-call-site-mismatch"
+    javascript: >
+      _drawEntityMask() passes the rectangle's width and height to
+      _drawEntityOverlay() in the positions the helper uses for the type and
+      tile coordinates; it also does not pass both tile coordinates.
+    impact: >
+      Overlay sprite selection may use an incorrect type/terrain or fail to
+      draw the layer.
+  - id: "terrain-color-hour"
+    severity: "render"
+    status: "confirmed-in-source"
+    javascript: >
+      _getTerrainColor() compares the module identifier i with numeric hours;
+      the instance clock is this.i.
+    impact: "Color threshold selection may not follow the in-game time."
+  - id: "duplicate-gradient-ports"
+    severity: "render"
+    status: "confirmed-divergence"
+    javascript:
+      terrain_helper: >
+        _drawTileGradient() compares paramInt2 with H*70/100 using JavaScript
+        floating-point arithmetic and uses deterministic variations for
+        horizon detail. It also accesses this.h.a even though this.h is the
+        numeric heading; the access fails and the local catch hides the
+        exception, so that lateral scatter is skipped.
+      entity_helper: >
+        renderTileColumn16() applies integer coercions to emulate Java integer
+        division and uses randomBetween() for variation.
+    impact: >
+      These are parallel implementations of the gradient with different
+      behavior; do not assume both preserve the Java routine's result.
+  - id: "random-int-source"
+    severity: "gameplay-determinism"
+    status: "confirmed-divergence"
+    java: "randomInt(int, int, Random) uses the provided Random."
+    javascript: "randomInt(lo, hi, rng) calculates with Math.random() and ignores rng."
+    impact: >
+      Results do not follow the same pseudorandom sequence as Java; results
+      may vary between runs even when an RNG is provided.
+  - id: "heading-and-light-selector"
+    severity: "render-and-input"
+    status: "confirmed-field-conflict"
+    javascript: >
+      this.h is initialized as a numeric heading, but some conditions
+      interpret it as a lighting boolean. The bCam[8] path even toggles it
+      with this.h = !this.h. renderCell20() selects the day/night tables
+      using this same field.
+    impact: >
+      After the toggle, h is no longer a numeric heading and may select
+      unexpected or invalid bounds/palettes.
+  - id: "debug-tuft-rng"
+    severity: "debug-only"
+    status: "confirmed-side-effect"
+    javascript: >
+      __WM_DEBUG_TUFTS forces the tuft scatter branch, which consumes this.a,
+      the Random shared with gameplay. Without the toggle, the normal
+      i7===66 case is not reached with the band sizes at current call sites.
+    impact: >
+      Enabling diagnostics changes the game's subsequent random sequence; this
+      is not an observation-only mode.
+  - id: "overlay-renderer-stub"
+    severity: "incomplete-port"
+    status: "stub"
+    javascript: "_renderOverlay(g) is empty."
+    impact: "Produces no drawing until implemented."
+
+debug_controls:
+  - flag: "__WM_DEBUG_RENDER"
+    default: true
+    effect: "Controls render instrumentation; false silences it."
+  - flag: "__WM_DEBUG_HUD"
+    default: true
+    effect: "Shows the paintScreen() status HUD; false hides it."
+  - flag: "__WM_DEBUG_AUTOMOVE"
+    default: false
+    effect: "Forces bCam[0] during update()."
+  - flag: "__WM_DEBUG_TUFTS"
+    default: false
+    effect: "Forces and displays diagnostic tufts; consumes the gameplay Random."
+  - flag: "__WM_DEBUG_DRAW"
+    default: false
+    effect: "Sprite/atlas instrumentation located in src/resources/c.js."
+
+maintenance_notes:
+  - "Use i.java as a reference for intent, but verify each call against its signature and actual state."
+  - "Do not mechanically convert all ported static methods into instance methods."
+  - "When changing rendering, review silent catches and test the result in the browser."
+  - "Recheck cited lines and expressions if i.js or i.java is restructured."
+
+overload_rename_pass:
+  date: "2026-11-16"
+  scope: >
+    Name-only pass. Logic, argument order, game state, and the screen's public
+    API were not changed. The goal was to have render calls target existing
+    methods with unique names, without attempting to fix the bugs described
+    in nuevo.txt.
+  reason: >
+    JavaScript does not support signature-based overloading. The port retained
+    Java signatures as uniquely named methods (readTileBits, _lineIntersect,
+    randomBetween, showMessageDialog, ...), but many call sites still invoked
+    bare Java names such as a(...), b(...), c(...). Those identifiers exist as
+    uninitialized module variables (i.js:12-17), so the call throws a
+    ReferenceError inside an empty try/catch and becomes a silent no-op. This
+    is why the drawing path produces no output even though the paint loop runs.
+  untouched_public_api:
+    - "paintScreen"
+    - "update"
+    - "screenEntered"
+    - "keyPressed"
+    - "resetGameState"
+    - "_paintEntry"
+    - "_renderAll"
+    - "_renderTerrain"
+    - "_renderUI"
+  renamed_methods:
+    - old: "bCheck"
+      new: "canUseCurrentItemStub"
+      java: "b() (i.java:1618)"
+      note: "Boolean stub; retains the current return true."
+    - old: "bPaint"
+      new: "legacyPaintNoop"
+      java: "b(Graphics) (i.java:3155)"
+      note: "No body; renamed only."
+    - old: "bSub"
+      new: "legacySubNoop"
+      java: "b(boolean) (i.java:8388)"
+      note: "No body; renamed only."
+    - old: "bStep"
+      new: "legacyPaintDelegatingNoop"
+      java: "b(boolean, Graphics) (i.java:4733)"
+      note: "Delegated to bPaint; the delegation was updated to the new name."
+    - old: "bSet"
+      new: "legacySetEntityNoop"
+      java: "b(int, int, int) (i.java:3019)"
+      note: "No body; renamed only."
+    - old: "bCk"
+      new: "legacyTilePassableNoop"
+      java: "b(byte, byte) (i.java:7895)"
+      note: "Stub that returns true."
+    - old: "bTile"
+      new: "legacyEntityLookupB"
+      java: "b(byte, byte, int, int) (i.java:1815)"
+      note: "Stub that returns false; does not implement entity lookup."
+    - old: "aTileCheck"
+      new: "legacyEntityLookupA"
+      java: "a(byte, byte, int) (i.java:1855)"
+      note: "Stub that returns false."
+    - old: "bTileCheck"
+      new: "legacyEntityLookupBStrict"
+      java: "b(byte, byte, int, int) (i.java:1815)"
+      note: "Stub that returns false."
+    - old: "aTileMatch"
+      new: "legacyEntityLookupAAny"
+      java: "a(byte, byte, int) (i.java:1855)"
+      note: "Stub that returns false."
+    - old: "n"
+      new: "scanEntityInteraction"
+      java: "n() (i.java:1945)"
+      note: "Entity interaction scan; currently returns immediately due to a port gap."
+    - old: "aFunc"
+      new: "partyTickStub"
+      java: "unidentified"
+      note: "Empty stub in the group of unported systems."
+    - old: "jAction"
+      new: "stepCounterStub"
+      java: "unidentified"
+      note: "Empty stub."
+    - old: "rAction"
+      new: "randomEncounterStub"
+      java: "unidentified"
+      note: "Empty stub."
+    - old: "sAction"
+      new: "stepSoundStub"
+      java: "unidentified"
+      note: "Empty stub."
+    - old: "tAction"
+      new: "fieldEventStub"
+      java: "unidentified"
+      note: "Empty stub."
+    - old: "hMove"
+      new: "cursorMoveStub"
+      java: "unidentified"
+      note: "Empty stub."
+    - old: "mAction"
+      new: "entityActionStub"
+      java: "unidentified"
+      note: "Empty stub."
+    - old: "uAction"
+      new: "ambientTimerStub"
+      java: "unidentified"
+      note: "Empty stub."
+    - old: "jValue"
+      new: "statValueStub"
+      java: "unidentified"
+      note: "Empty stub."
+    - old: "iMethod"
+      new: "inventoryRefreshStub"
+      java: "unidentified"
+      note: "Empty stub."
+    - old: "lMethod"
+      new: "partyRefreshStub"
+      java: "unidentified"
+      note: "Empty stub."
+    - old: "legacyR0"
+      new: "runEntityAiForCurrentTile"
+      java: "o() (i.java:2169)"
+      note: "Runs the AI for entities sharing the current tile."
+    - old: "legacyD2"
+      new: "legacyPortalRegistryUpdate"
+      java: "d(int, int) (i.java:4912)"
+      note: "Bytecode transcription; no internal calls."
+    - old: "tInit"
+      new: "tickPortalTimers"
+      java: "t() (i.java:5006)"
+      note: "Decrements portal counters."
+    - old: "legacyF0"
+      new: "legacyAdvanceDialogTimer"
+      java: "f(int) (i.java:1728)"
+      note: "No internal calls."
+    - old: "legacyX0"
+      new: "legacyDialogAdvance"
+      java: "unidentified"
+      note: "Used by advanceTimers; its 3 calls were updated."
+    - old: "legacyX1"
+      new: "legacyNpcMove"
+      java: "x(int) (i.java:8020)"
+      note: "Its only call was updated."
+    - old: "legacyLGraphics"
+      new: "renderEntityOverlayGraphics"
+      java: "l(Graphics) (i.java:8202)"
+      note: "Draws entity trails; no internal calls."
+    - old: "nCaveDraw"
+      new: "renderCaveInterior"
+      java: "n(Graphics) (i.java:8353)"
+      note: "Draws the cave interior; no internal calls."
+  resolved_bare_calls:
+    - signature: "a(byte, byte, int, int)"
+      target: "this.tileFieldBits(x, y, shift, mask)"
+      java: "a(byte, byte, int, int) (i.java:4526/4528/4532)"
+      sites: "renderRegion, renderTileColumn, _drawEntityHouse, _updateMinimapIcons, _getTerrainColorSimple/At, isTileBlocked, renderEntityOverlayGraphics, renderSpriteOffset"
+    - signature: "a(int x 8)"
+      target: "this._lineIntersect(...)"
+      java: "a(int,int,int,int,int,int,int,int) (i.java:4513)"
+      sites: "renderRegion"
+    - signature: "a(lo, hi, Random)"
+      target: "this.randomBetween(lo, hi, rng)"
+      java: "a(int,int,Random) (i.java:2875)"
+      sites: "renderTileColumn, _randomArrayEl, _drawEntityHouse, renderSpriteOffset, renderWeatherFx"
+    - signature: "a(byte, byte)"
+      target: "this._getTerrainColorSimple(x, y)"
+      java: "a(byte, byte) (i.java:5105)"
+      sites: "_drawMinimapTile"
+    - signature: "d(int)"
+      target: "this._terrainTypeColor(tileType)"
+      java: "d(int) (i.java:5115)"
+      sites: "_getTerrainColorSimple"
+    - signature: "a(int, boolean, boolean)"
+      target: "this._getTerrainColor(type, day, lit)"
+      java: "a(int,boolean,boolean) (i.java:5135)"
+      sites: "_getTerrainColorAt, renderEntityOverlayGraphics"
+    - signature: "a(int, String[], int)"
+      target: "this.showMessageDialog(id, lines, soundId)"
+      java: "a(int,String[],int) (i.java:7262)"
+      sites: "_updateMinimapIcons"
+    - signature: "f(int)"
+      target: "this.clampByte(value)"
+      java: "f(int) (i.java:7627)"
+      sites: "_drawMinimapTile"
+    - signature: "a(x, y, w, h, g[, bool][, color])"
+      target: "this._drawUIFrame(...)"
+      java: "a(int,int,int,int,boolean,int,Graphics) (i.java:5673)"
+      sites: "_renderActionIcons, _renderInventory, _renderWaterAnim"
+    - signature: "a(int, int, int, int, int, Graphics[, boolean])"
+      target: "this._drawEntityOverlay(...) / this._playEntityAnim(...)"
+      java: "a(...6,Graphics) (i.java:4313) / a(...6,Graphics,boolean) (i.java:4349)"
+      sites: "renderTileColumn"
+    - signature: "b(byte, byte)"
+      target: "this.isInTileListC(x, y)"
+      java: "b(byte, byte) (i.java:7895)"
+      sites: "addToTileListC, _updateMinimapIcons"
+    - signature: "c(byte, byte)"
+      target: "this.addToTileListC(x, y)"
+      java: "c(byte, byte) (i.java:7834)"
+      sites: "_updateMinimapIcons"
+    - signature: "a(int, int, int)"
+      target: "this.isInTileSet(x, y, kind)"
+      java: "a(int,int,int) (i.java:7903)"
+      sites: "reservePathTiles"
+    - signature: "b(x, y, size, Graphics)"
+      target: "this._drawRectOutline(x, y, size, g)"
+      java: "b(int,int,int,Graphics) (i.java:5242)"
+      sites: "_drawMinimapTile, _updateMinimapIcons, _renderFullMinimap"
+    - signature: "b(int, Graphics)"
+      target: "this._drawCompassMark(y, g)"
+      java: "b(int, Graphics) (i.java:5340)"
+      sites: "_renderUIBar"
+    - signature: "c(x, y, value, Graphics)"
+      target: "this._drawNumber(x, y, value, g)"
+      java: "c(int,int,int,Graphics) (i.java:5353)"
+      sites: "_renderUIBar, _renderFullMinimap"
+    - signature: "c(itemId)"
+      target: "this.calcItemEffect(itemId)"
+      java: "c(int) (i.java:1568)"
+      sites: "_renderUIBar"
+    - signature: "e(itemId)"
+      target: "this.spriteRowForId(itemId)"
+      java: "e(int) (i.java:5596)"
+      sites: "_renderActionIcons"
+  remaining_bare_calls:
+    note: >
+      These calls were intentionally left unchanged: resolving them requires
+      deciding semantics or correcting argument order, which is outside the
+      scope of this pass. They remain candidates for silent no-ops.
+    sprite_draw_legacy_order:
+      - lines: "4054-4081"
+        code: "c.a(x, y, spriteId, g) and a(x, y, spriteId, g)"
+        why: >
+          The actual API is cRes.drawSprite(spriteId, x, y, g). Changing only
+          the name would require reordering arguments, which was agreed not to do.
+      - lines: "4086"
+        code: "a(i1, i2, h.f[bool3], paramGraphics)"
+        why: "Same case: sprite drawing with Java argument order."
+      - lines: "3753"
+        code: "a(x, y, frameId, g) inside _playEntityAnim"
+        why: "Four-argument sprite drawing; same ordering conflict."
+    ambiguous_tile_overloads:
+      - lines: "3768"
+        code: "a(d, e)"
+        why: >
+          Could be the terrain color or terrain type index. The Java source
+          itself mixes the h.a/h.j tables, so it cannot be mapped without
+          changing behavior.
+      - lines: "3964-3965"
+        code: "b(x, y, 5, 0) / b(x, y, 5, 2)"
+        why: >
+          There are two candidate Java overloads with the same signature
+          (entity lookup and tile mask), and the port does not distinguish them.
+      - lines: "4174, 4184, 4196, 4207, 4218"
+        code: "b(x, y, 1, 1), a(x, y, 2|6|5), a(x, y)"
+        why: >
+          Mixes 2-, 3-, and 4-argument overloads. The original also duplicates
+          conditions of the form a(x,y,6) && !a(x,y,6).
+    unnamed_helpers:
+      - lines: "4179, 4189, 4201, 4212, 4247, 4262, 4276, 4291, 4302, 4312, 4322"
+        code: "d(int, int)"
+        why: "There is no uniquely named port for this boolean overload."
+      - lines: "4831"
+        code: "bool = a(i4, b2)"
+        why: "The result is used as a boolean; no current helper returns that."
+      - lines: "4920"
+        code: "a(x, y, w, h, g)"
+        why: >
+          Corresponds to the public frame in i.java:4714 and has no named
+          equivalent in i.js.
+    intro_and_persistence:
+      - lines: "4954-4980"
+        code: "g/l/i/j/k/f/m/h(Graphics) and a(123,8,45,45,g)"
+        why: "Intro drawing functions with no unique name assigned."
+      - lines: "5315-5432"
+        code: "a(byte[], int, value) / b(byte[], int, value) in writeSaveRecord"
+        why: >
+          Mixes int and short writes under the same name; the port has no
+          single equivalent routine.
+    other_collisions:
+      - lines: "6603"
+        code: "b(b) in leaveLevel"
+        why: "Bare name that collides with local fields."
+      - lines: "7348, 7436-7447"
+        code: "r(int) and a(int, int) in path logic"
+        why: "There is no ported overload with a unique name."
+      - lines: "7831"
+        code: "c(x, y) used as a boolean in storeEntityFixed"
+        why: >
+          c(byte,byte) was ported as addToTileListC (void); using it as a
+          condition requires rewriting the logic.
+  unaffected_but_still_broken:
+    note: >
+      The renaming does not fix the functional defects in nuevo.txt or the
+      Java syntax errors that remain in i.js. The following are among those
+      still present:
+    items:
+      - "this.h is used as both a heading and a lighting boolean."
+      - "_getTerrainColor compares the i class with numbers (i === 5, i === 6, ...)."
+      - "this.h.a is read from a numeric field in _drawEntityMask."
+      - "resetGameState assigns arrays to this.d/this.e and then sets them back to 0."
+      - "calcScore/writeSaveRecord/loadCollisionMap/initParticlePools retain Java constructs (new byte[2600], new int[...], System.gc())."
+      - "loadCollisionMap uses the unresolved bare module c (c.a(63), c.b(63))."
+  verification:
+    - "node --check src/game/i.js -> OK."
+    - "No duplicate method names remain in i.js."
+    - "No tests import i.js; validation is static."
+    - "Line numbers correspond to the state after this pass; recheck if lines are inserted or removed."

@@ -1,239 +1,244 @@
-# Flujo de `src/game/i.js`
+# `src/game/i.js` flow
 
-`i.js` es el port de la pantalla principal de juego (`i extends p` / `Screen`), la clase más
-grande del proyecto (~8k líneas). Este documento describe su estructura y el recorrido de un
-frame: entrada → update → render. Sirve como mapa; los números de línea son orientativos y
-pueden moverse.
+`i.js` is the port of the main game screen (`i extends p` / `Screen`), the largest
+class in the project (~8k lines). This document describes its structure and the path
+of a frame: input → update → render. It serves as a map; line numbers are approximate
+and may shift.
 
-Referencia Java: `src/game/i.java` (solo lectura, fuente de verdad). El JS mezcla varias clases
-internas en un solo archivo, por eso hay nombres repetidos (`i`, `j`, `a`, `e`, ...).
+Java reference: `src/game/i.java` (read-only, source of truth). The JS combines several
+inner classes into a single file, which is why names are repeated (`i`, `j`, `a`, `e`, ...).
 
 ---
 
-## 1. Estructura del módulo
+## 1. Module structure
 
 - Imports (`i.js:1-5`):
-  - `Screen` (`p.js`), `Random` (`j2me/Random.js`), recursos (`resources/c.js`),
-    audio/helpers (`n.js`) y el hub de runtime (`m.js`).
-- Tablas de datos copiadas de `h.java` (`i.js:21-104`): `hDayBounds`, `hNightBounds`,
-  `hDirB..hDirI` (vecindades de tiles para `renderSpriteOffset`), `hGroundProb`, prefabs de
-  terreno `hPrefabs`, `hColorThresholds`.
-- Declaración de campos "sueltos" a nivel de módulo (`i.js:12-17`): el port dejó referencias
-  estilo Java (`A`, `B`, ...) y se declaran aquí para evitar `ReferenceError`. No son estado real.
-- Debug de render (`i.js:107-140`): `dbgR`, `dbgOnce`, gate por `__WM_DEBUG_RENDER`.
-- Clase `i` (`i.js:421`) y "level-1 store" al final (`i.js:8026-8036`) que copia los métodos
-  estáticos al prototipo para que `this.metodo(...)` resuelva.
+  - `Screen` (`p.js`), `Random` (`j2me/Random.js`), resources (`resources/c.js`),
+    audio/helpers (`n.js`), and the runtime hub (`m.js`).
+- Data tables copied from `h.java` (`i.js:21-104`): `hDayBounds`, `hNightBounds`,
+  `hDirB..hDirI` (tile neighborhoods for `renderSpriteOffset`), `hGroundProb`, terrain
+  prefabs `hPrefabs`, and `hColorThresholds`.
+- Module-level "loose" field declarations (`i.js:12-17`): the port retained Java-style
+  references (`A`, `B`, ...), which are declared here to avoid `ReferenceError`. They
+  are not actual state.
+- Render debugging (`i.js:107-140`): `dbgR`, `dbgOnce`, gated by `__WM_DEBUG_RENDER`.
+- Class `i` (`i.js:421`) and the "level-1 store" at the end (`i.js:8026-8036`), which
+  copies static methods to the prototype so `this.method(...)` resolves.
 
-Convención clave: los helpers portados viven como **métodos estáticos** y se invocan con
-`i.metodo.call(this, ...)`. No convertirlos en métodos de instancia (rompe el mapeo con el Java).
+Key convention: ported helpers live as **static methods** and are invoked with
+`i.method.call(this, ...)`. Do not convert them to instance methods (that breaks the
+mapping to Java).
 
 ---
 
-## 2. Ciclo de vida
+## 2. Lifecycle
 
-### Construcción / reset — `resetGameState()` (`i.js:427-522`)
+### Construction / reset — `resetGameState()` (`i.js:427-522`)
 
-Inicializa todo el estado de la partida. Puntos relevantes:
+Initializes all game state. Relevant points:
 
-- Buffers de tiles: `this.u`, `this.v`, `this.d`, `this.e`, `this.eArr`.
-- Buffers de "tufts" del horizonte: `tuftX`, `tuftY`, `tuftFlag`, `tuftCount`, `tuftEnabled`
-  (`i.js:434-442`). Ver §7.
-- Random real: `this.a = new Random(Date.now())` (`i.js:477`). Es el tercer argumento de
-  `randomBetween`.
-- Constantes de layout: `this.H = 76` (horizonte, `i.java:579`) y `this.skyBand = 169 - H`
+- Tile buffers: `this.u`, `this.v`, `this.d`, `this.e`, `this.eArr`.
+- Horizon "tuft" buffers: `tuftX`, `tuftY`, `tuftFlag`, `tuftCount`, `tuftEnabled`
+  (`i.js:434-442`). See §7.
+- Actual random generator: `this.a = new Random(Date.now())` (`i.js:477`). It is the
+  third argument to `randomBetween`.
+- Layout constants: `this.H = 76` (horizon, `i.java:579`) and `this.skyBand = 169 - H`
   (`i.js:518`).
-- Reloj/estado: `this.i` (hora del juego), `this.h` (facing), `this.d/this.e` (tile del jugador),
-  `this.C` (modo/estado), `this.m`, `this.I`, etc.
+- Clock/state: `this.i` (game time), `this.h` (facing), `this.d/this.e` (player tile),
+  `this.C` (mode/state), `this.m`, `this.I`, etc.
 
-### Entrada al screen — `screenEntered()` (`i.js:599`)
+### Screen entry — `screenEntered()` (`i.js:599`)
 
-Hook de la clase base; en este port está prácticamente vacío (el arranque real ocurre en `m.js`).
+Base-class hook; in this port it is practically empty (actual startup happens in `m.js`).
 
-### Entrada de teclado — `keyPressed(code)` (`i.js:804-849`)
+### Keyboard input — `keyPressed(code)` (`i.js:804-849`)
 
-Limpia `this.bCam[0..8]` y traduce el código J2ME a índices de movimiento/acción:
+Clears `this.bCam[0..8]` and maps the J2ME code to movement/action indices:
 
-| código | acción        |
-|-------:|---------------|
-| 5      | pausa/menú (`postEvent(20)`) |
-| 1,12   | `bCam[0]`     |
-| 2,18   | `bCam[1]`     |
-| 3,14   | `bCam[2]`     |
-| 4,16   | `bCam[3]`     |
-| 7,15   | `bCam[4]`     |
-| 17     | `bCam[5]`     |
-| 19     | `bCam[6]`     |
-| 11     | `bCam[7]`     |
-| 13     | `bCam[8]`     |
+| code  | action                       |
+|------:|------------------------------|
+| 5     | pause/menu (`postEvent(20)`) |
+| 1,12  | `bCam[0]`                    |
+| 2,18  | `bCam[1]`                    |
+| 3,14  | `bCam[2]`                    |
+| 4,16  | `bCam[3]`                    |
+| 7,15  | `bCam[4]`                    |
+| 17    | `bCam[5]`                    |
+| 19    | `bCam[6]`                    |
+| 11    | `bCam[7]`                    |
+| 13    | `bCam[8]`                    |
 
 ### Update — `update(dt)` (`i.js:562-597`)
 
-1. `updateAmbientParticles(dt)` (`i.js:1050`) — partículas de clima/ambiente.
-2. `updatePlacementState(dt)` (`i.js:1042`) — estado de colocación/construcción.
-3. Bucle de reloj: acumula `dt` y llama `advanceClock(1)` (`i.js:2158`) a 16 ms (día) o 800 ms
-   (noche/según `C`).
-4. `updateEntities()` (`i.js:1126`) — IA/movimiento de entidades.
-5. `__WM_DEBUG_AUTOMOVE` fuerza `bCam[0]` para pruebas.
+1. `updateAmbientParticles(dt)` (`i.js:1050`) — weather/ambient particles.
+2. `updatePlacementState(dt)` (`i.js:1042`) — placement/building state.
+3. Clock loop: accumulates `dt` and calls `advanceClock(1)` (`i.js:2158`) every 16 ms
+   (day) or 800 ms (night/depending on `C`).
+4. `updateEntities()` (`i.js:1126`) — entity AI/movement.
+5. `__WM_DEBUG_AUTOMOVE` forces `bCam[0]` for testing.
 
-`advanceTimers(dt)` (`i.js:851`) es otro acumulador de timers de gameplay (autosave,
-eventos, objetivos) que corre por su propia vía.
+`advanceTimers(dt)` (`i.js:851`) is another gameplay timer accumulator (autosave,
+events, objectives) that runs through its own path.
 
 ---
 
-## 3. Render: recorrido de un frame
+## 3. Rendering: frame flow
 
 ```
 paintScreen(g)                         i.js:524
- └─ g.setClip / fill negro
+ └─ g.setClip / fill black
  └─ i._paintEntry.call(this, g)        i.js:2484
      └─ i._renderAll.call(this, g, true)   i.js:2489
-         ├─ (debug) tuftCount = 0           [solo __WM_DEBUG_TUFTS]
+         ├─ (debug) tuftCount = 0           [__WM_DEBUG_TUFTS only]
          ├─ _renderTerrain(g)           i.js:3412  → _renderTerrainInner  i.js:3416
          ├─ _renderOverlay(g)           i.js:3409  (stub)
          ├─ _renderEntities(1, g)       i.js:3340
          ├─ _renderEntities(0, g)
          ├─ _renderEntities(2, g)
-         ├─ (debug) pase de dibujo de tufts [solo __WM_DEBUG_TUFTS]
+         ├─ (debug) tuft drawing pass   [__WM_DEBUG_TUFTS only]
          └─ _renderMinimap(g)           i.js:4120
- └─ HUD de debug (__WM_DEBUG_HUD !== false)  i.js:535-551
+ └─ debug HUD (__WM_DEBUG_HUD !== false)  i.js:535-551
 ```
 
-### 3.1 Terreno / cielo — `_renderTerrainInner` (`i.js:3416`)
+### 3.1 Terrain / sky — `_renderTerrainInner` (`i.js:3416`)
 
-Port de `i.java` `d(Graphics)`. Decide el "tipo" de escena (`b1`) según `this.i`, calcula colores
-día/noche y pinta dos franjas de gradiente con `_drawTileGradient` (`i.js:6728`):
+Port of `i.java` `d(Graphics)`. It selects the scene "type" (`b1`) based on `this.i`,
+calculates day/night colors, and paints two gradient bands with `_drawTileGradient`
+(`i.js:6728`):
 
-- banda alta: `_drawTileGradient(j=H*70/100, 0, j, ...)` (`i.js:3461`)
-- banda baja: `_drawTileGradient(H-j, j, H, ...)` (`i.js:3477`)
+- upper band: `_drawTileGradient(j=H*70/100, 0, j, ...)` (`i.js:3461`)
+- lower band: `_drawTileGradient(H-j, j, H, ...)` (`i.js:3477`)
 
-También dibuja los puntos de "compass"/estrellas cuando es de noche (`i.js:3480+`).
-`_fillTerrainBg` (`i.js:3321`) rellena el fondo con el sprite 269.
+It also draws the "compass"/star dots at night (`i.js:3480+`).
+`_fillTerrainBg` (`i.js:3321`) fills the background with sprite 269.
 
-### 3.2 Entidades — `_renderEntitiesInner` (`i.js:3346`)
+### 3.2 Entities — `_renderEntitiesInner` (`i.js:3346`)
 
-Port del bucle de 5 columnas (A) + 3 columnas (B) de `i.java:3985-4045`. Para cada columna
-calcula tile visible `(b2,b3)` desde `this.d/e + hDayBounds[this.h]` y despacha según `paramInt`:
+Port of the 5-column (A) + 3-column (B) loop from `i.java:3985-4045`. For each column,
+it calculates the visible tile `(b2,b3)` from `this.d/e + hDayBounds[this.h]` and dispatches
+according to `paramInt`:
 
 - `paramInt 1/0`: `_drawEntityClip(...)` (`i.js:3614`)
 - `paramInt 2`: `_drawEntityMask(...)` (`i.js:3656`)
 
-Al final llama `_drawTerrainColumn(...)` (`i.js:3810`), que dibuja la columna de terreno/prefabs
-del horizonte.
+Finally, it calls `_drawTerrainColumn(...)` (`i.js:3810`), which draws the horizon's
+terrain/prefab column.
 
-### 3.3 Clipping y gradiente de entidad — `_drawEntityClip` (`i.js:3614`)
+### 3.3 Entity clipping and gradient — `_drawEntityClip` (`i.js:3614`)
 
-Decide si la entidad cruza la línea del horizonte (`H + skyBand`) y divide el dibujo en dos
-pasadas. Cada pasada llama `renderCell20(...)` (`i.js:6903`), que ajusta las coordenadas según
-el día/noche (`hDayBounds`/`hNightBounds` vía `facingFromTileBits`) y delega en
-`renderTileColumn16(...)` (`i.js:6922`).
+Determines whether an entity crosses the horizon line (`H + skyBand`) and splits drawing
+into two passes. Each pass calls `renderCell20(...)` (`i.js:6903`), which adjusts the
+coordinates based on day/night (`hDayBounds`/`hNightBounds` via `facingFromTileBits`) and
+delegates to `renderTileColumn16(...)` (`i.js:6922`).
 
-`renderTileColumn16` es el port del método Java de 16 args `i.java:7289`: recorre la franja
-scanline a scanline interpolando el color entre `paramInt4` y `paramInt5` y dibujando con
-`setColor`/`drawLine` (no son sprites). `_drawTileGradient` (`i.js:6728`) es un **segundo port**
-del mismo método Java, usado por el terreno; hoy están duplicados y divergen en detalles.
+`renderTileColumn16` is the port of the 16-argument Java method `i.java:7289`: it traverses
+the band scanline by scanline, interpolating the color between `paramInt4` and `paramInt5`
+and drawing with `setColor`/`drawLine` (not sprites). `_drawTileGradient` (`i.js:6728`) is
+a **second port** of the same Java method, used for terrain; they are currently duplicated
+and differ in details.
 
-### 3.4 Máscara / objeto / overlay de entidad
+### 3.4 Entity mask / object / overlay
 
-- `_drawEntityMask` (`i.js:3656`): clip + objeto + animación (si `paramInt4 === 66`) + overlay.
-- `_drawEntityObject` (`i.js:3673`): sombra/objeto de la entidad (switch 66/20/7).
-- `_playEntityAnim` (`i.js:3735`): animación de entidades especiales.
-- `_drawEntityOverlay` (`i.js:3699`) y `_drawEntityHouse` (`i.js:4097`): capas extra.
+- `_drawEntityMask` (`i.js:3656`): clip + object + animation (if `paramInt4 === 66`) + overlay.
+- `_drawEntityObject` (`i.js:3673`): entity shadow/object (switch 66/20/7).
+- `_playEntityAnim` (`i.js:3735`): special entity animation.
+- `_drawEntityOverlay` (`i.js:3699`) and `_drawEntityHouse` (`i.js:4097`): extra layers.
 
-### 3.5 Minimapa y UI
+### 3.5 Minimap and UI
 
 - `_renderMinimap` (`i.js:4120`) → `_renderMinimapInner` (`i.js:4126`).
 - `_renderUIBar` (`i.js:4674`), `_renderActionIcons` (`i.js:4987`), `_renderInventory`
   (`i.js:5035`), `_drawCompassMark` (`i.js:4767`), `_drawNumber` (`i.js:4780`).
-- `_renderFullMinimap` (`i.js:4807`) para la vista de mapa completo.
+- `_renderFullMinimap` (`i.js:4807`) for the full map view.
 
 ---
 
-## 4. Tiles, colisiones y mundo
+## 4. Tiles, collisions, and world
 
-- `readTileBits(x, y, mask, shift)` (`i.js:1599`): lectura del tile con máscara.
-- `tileFieldBits` (`i.js:2387`): wrapper de `readTileBits`.
+- `readTileBits(x, y, mask, shift)` (`i.js:1599`): read a tile using a mask.
+- `tileFieldBits` (`i.js:2387`): wrapper for `readTileBits`.
 - `isWalkable(x, y)` (`i.js:2472`), `isTileBlocked` (`i.js:7531`), `canPlaceEntity`
   (`i.js:2453`), `isInTileSet` (`i.js:7557`).
 - `loadTileData` (`i.js:637`), `loadWorldData` (`i.js:791`), `loadCollisionMap` (`i.js:7282`).
 - `placeEntity` (`i.js:613`), `canPlaceEntity`, `stepEntity` (`i.js:2442`),
   `wanderEntity` (`i.js:2400`), `faceEntityTowards` (`i.js:2409`).
-- Acciones de tile: `handleTileAction` (`i.js:1081`), `harvestTile` (`i.js:1580`),
+- Tile actions: `handleTileAction` (`i.js:1081`), `harvestTile` (`i.js:1580`),
   `handleTileField` (`i.js:7456`).
 
 ---
 
-## 5. Inventario, salud, loot y guardado
+## 5. Inventory, health, loot, and saving
 
-- Inventario: `addItemToInventory` (`i.js:2051`), `removeItemFromInventory` (`i.js:2134`),
+- Inventory: `addItemToInventory` (`i.js:2051`), `removeItemFromInventory` (`i.js:2134`),
   `selectItemSlot` (`i.js:1723`), `isConsumablesFull` (`i.js:1965`).
-- Salud/energía: `_calcHealth` (`i.js:2143`), `gainEnergy` (`i.js:1594`).
+- Health/energy: `_calcHealth` (`i.js:2143`), `gainEnergy` (`i.js:1594`).
 - Loot: `grantRandomLoot` (`i.js:1902`), `updatePickups` (`i.js:1990`).
-- Persistencia: `writeSaveRecord` (`i.js:5290`), `calcScore` (`i.js:5244`), helpers
-  `writeInt`/`readInt32BE`/etc. (`i.js:5215-5288`). Usa `RecordStore` vía `m.js`.
-- Portal/efectos: `registerPortalEffect` (`i.js:1655`), `tickPortalEffects` (`i.js:1674`).
+- Persistence: `writeSaveRecord` (`i.js:5290`), `calcScore` (`i.js:5244`), helpers
+  `writeInt`/`readInt32BE`/etc. (`i.js:5215-5288`). Uses `RecordStore` via `m.js`.
+- Portal/effects: `registerPortalEffect` (`i.js:1655`), `tickPortalEffects` (`i.js:1674`).
 
 ---
 
-## 6. Aleatoriedad
+## 6. Randomness
 
-- `this.a` es un `Random` J2ME (`src/j2me/Random.js`), bit-exacto con `java.util.Random`.
-- `randomBetween(lo, hi, rng)` (`i.js:2479`) usa `rng.nextInt() >>> 1`.
-- Ojo: `randomInt` (`i.js:607`) todavía usa `Math.random()`, no el `Random`; es una divergencia
-  conocida respecto al original.
+- `this.a` is a J2ME `Random` (`src/j2me/Random.js`), bit-exact with `java.util.Random`.
+- `randomBetween(lo, hi, rng)` (`i.js:2479`) uses `rng.nextInt() >>> 1`.
+- Note: `randomInt` (`i.js:607`) still uses `Math.random()`, not `Random`; this is a
+  known divergence from the original.
 
 ---
 
-## 7. Tufts del horizonte y `__WM_DEBUG_TUFTS`
+## 7. Horizon tufts and `__WM_DEBUG_TUFTS`
 
-El bloque de dispersión de "tufts" (`i.java:7405-7441`) se portó en `renderTileColumn16`
-(`i.js:7060-7102`). Diagnóstico:
+The "tuft" scatter block (`i.java:7405-7441`) was ported to `renderTileColumn16`
+(`i.js:7060-7102`). Diagnostics:
 
-- `i7` es el **número de scanlines** de la franja, no un id de tile.
-- Con `H=76` (`i.java:579`), `I=93` y `J=I*40/100=37` (`i.java:7016-7023`), las llamadas de
-  16 args producen alturas 37/56 (cielo), 53/23 (terreno) y 7/20 (entidades). `i7 === 66`
-  **nunca ocurre**.
-- Además, en el Java los arrays `u/v/e` solo se escriben y se resetan (`i.java:3170-3188`);
-  nunca se leen para dibujar. Es código muerto también en el original.
-- Por eso `tuftCount` se queda en 0 de forma fiel.
+- `i7` is the **number of scanlines** in the band, not a tile ID.
+- With `H=76` (`i.java:579`), `I=93`, and `J=I*40/100=37` (`i.java:7016-7023`), the
+  16-argument calls produce heights 37/56 (sky), 53/23 (terrain), and 7/20 (entities).
+  `i7 === 66` **never occurs**.
+- Also, in Java the `u/v/e` arrays are only written to and reset (`i.java:3170-3188`);
+  they are never read for drawing. This is dead code in the original as well.
+- Therefore, `tuftCount` remains 0, faithfully.
 
-Para inspeccionarlo en pantalla hay un toggle de debug, apagado por defecto:
+To inspect them on screen, there is a debug toggle, off by default:
 
 ```
 __WM_DEBUG_TUFTS = true
 ```
 
-Activa tres cosas:
-1. reset de `tuftCount` al inicio de cada frame (`i.js:2490`);
-2. fuerza el gate `i7 === 66` a `i7 === 66 || __WM_DEBUG_TUFTS` (`i.js:7079`), de modo que el
-   scatter se ejecuta en las franjas de entidad (y≈76/83, a lo ancho de la pantalla);
-3. dibuja cada punto en `_renderAll` (`i.js:2496-2505`): cian si `tuftFlag` es 1, magenta si 0,
-   con `fillRect(x, y, 2, 2)`, y loguea el conteo cada 60 frames.
+It enables three things:
+1. Resets `tuftCount` at the start of every frame (`i.js:2490`);
+2. Forces the `i7 === 66` gate to `i7 === 66 || __WM_DEBUG_TUFTS` (`i.js:7079`), so the
+   scatter runs in the entity bands (at y≈76/83, across the screen);
+3. Draws each point in `_renderAll` (`i.js:2496-2505`): cyan if `tuftFlag` is 1, magenta
+   if 0, using `fillRect(x, y, 2, 2)`, and logs the count every 60 frames.
 
-Con el flag apagado el comportamiento es idéntico al fiel (`tuftCount === 0`).
+With the flag off, behavior is identical to the faithful port (`tuftCount === 0`).
 
 ---
 
-## 8. Debug toggles relevantes
+## 8. Relevant debug toggles
 
-| flag | efecto |
+| flag | effect |
 |---|---|
-| `__WM_DEBUG_RENDER` | logs `[dbg-render]` de `i.js` (por defecto ON) |
-| `__WM_DEBUG_HUD` | overlay de estado en `paintScreen` (por defecto ON) |
-| `__WM_DEBUG_AUTOMOVE` | fuerza `bCam[0]` en `update` |
-| `__WM_DEBUG_TUFTS` | scatter forzado + dibujo de puntos (por defecto OFF) |
-| `__WM_DEBUG_DRAW` | traza de sprites/atlas en `resources/c.js` |
+| `__WM_DEBUG_RENDER` | `[dbg-render]` logs from `i.js` (ON by default) |
+| `__WM_DEBUG_HUD` | State overlay in `paintScreen` (ON by default) |
+| `__WM_DEBUG_AUTOMOVE` | Forces `bCam[0]` in `update` |
+| `__WM_DEBUG_TUFTS` | Forced scatter + point drawing (OFF by default) |
+| `__WM_DEBUG_DRAW` | Sprite/atlas trace in `resources/c.js` |
 
 ---
 
-## 9. Gotchas del port
+## 9. Porting gotchas
 
-- Muchos `try/catch (_e) {}` silenciosos: un fallo suele verse como no-op, no como excepción.
-  Mirar consola (`[i]`, `[i.js]`, `[paint]`).
-- Los `this.<letra>` están sobrecargados entre clases internas fusionadas; no asumir que
-  `this.e`/`this.u`/`this.a` significan lo mismo en todo el archivo.
-- `_drawTileGradient` y `renderTileColumn16` son dos ports del mismo método Java y han
-  divergido (p.ej. el bloque de tufts solo está en el segundo, y el test de horizonte usa
-  `|0` solo en el segundo).
-- `skyBand` en el port es `169 - H` (el Java `I`), mientras que el Java `J` vale `37`. El
-  comentario de `i.js:510-517` confunde ambos; `_drawEntityClip` usa `H + skyBand = 169` en vez
-  de `H + J = 113`. Hoy no cambia nada porque las entidades no cruzan ninguna de las dos cotas.
+- Many silent `try/catch (_e) {}` blocks: failures often appear as no-ops, not exceptions.
+  Check the console (`[i]`, `[i.js]`, `[paint]`).
+- `this.<letter>` fields are overloaded across merged inner classes; do not assume
+  `this.e`/`this.u`/`this.a` mean the same thing throughout the file.
+- `_drawTileGradient` and `renderTileColumn16` are two ports of the same Java method and
+  have diverged (e.g. the tuft block exists only in the latter, and only the latter's
+  horizon test uses `|0`).
+- In the port, `skyBand` is `169 - H` (the Java `I`), while Java `J` is `37`. The comment
+  at `i.js:510-517` confuses the two; `_drawEntityClip` uses `H + skyBand = 169` instead
+  of `H + J = 113`. Today this makes no difference because entities cross neither boundary.
