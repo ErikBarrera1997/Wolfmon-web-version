@@ -114,14 +114,14 @@ render_pipeline:
     steps:
       - "Sets the canvas clip to 176x208 and clears the background."
       - "Calls i._paintEntry.call(this, g)."
-      - "Draws the HUD if __WM_DEBUG_HUD is not false."
+      - "No debug HUD or tuft points are drawn; diagnostics go to the console only."
   main_frame:
     javascript: "i._renderAll(g, true)"
     steps:
       - "Renders the terrain and sky."
       - "Runs entity passes in the order 1, 0, and 2."
       - "Renders the minimap."
-      - "With __WM_DEBUG_TUFTS, resets and draws diagnostic points."
+      - "Diagnostic tuft points were removed; no toggle draws on the canvas."
   terrain:
     javascript:
       - "i._renderTerrainInner(g)"
@@ -705,3 +705,114 @@ overload_rename_pass:
     - "No duplicate method names remain in i.js."
     - "No tests import i.js; validation is static."
     - "Line numbers correspond to the state after this pass; recheck if lines are inserted or removed."
+
+input_state_fix:
+  date: "2026-11-18"
+  symptom: >
+    Pressing left/right (any key routed through keyPressed, including unmapped
+    ones) froze a requestAnimationFrame handler for ~270 ms and emitted
+    cursorMoveStub(-1) with h=sí.
+  cause: >
+    i.java declares the nine key slots as byte[] (keyPressed writes 0/1 and j()
+    tests != 0). The port kept false/true but updateEntities tested
+    `bCam[n] !== null`. Since `false !== null` is true, every key press marked
+    all nine actions as active; the first update then ran movement, cursor,
+    dialog and h-toggle branches together and corrupted the heading boolean.
+  fix: >
+    updateEntities now tests `this.bCam[n] === true` for all nine slots. The
+    unused `_Jact` sentinel computed with the old comparison was removed.
+    keyPressed and the public API were not changed.
+  verification:
+    - "node --check src/game/i.js -> OK."
+    - "npm test -> 33/33."
+    - "Render draw calls are unchanged; only HUD/tuft debug drawing was removed earlier."
+
+log_analysis_2026_11_18:
+  source: "docs/logs.txt (41 lines captured after the bCam fix)"
+  confirmed_ok:
+    - "H=76, skyBand=93 and ground=169: _renderTerrain/_renderTerrainInner/_drawEntityClip report OK; the sky is intact."
+    - "keyPressed(code=3) now sets bCam[2] only; h advances numerically (7, 5) and no cursorMoveStub appears."
+    - "The first key no longer triggers the nine bCam branches together: the input_state_fix holds."
+  fixes_applied:
+    numeric_byte_literals:
+      cause: >
+        The decompiled Java assigns boolean literals to byte fields (`z = false`,
+        `i = true`, `i = false` in i.java:1011/1524/2659 equivalents). In Java
+        these compile to 0/1; the JS port stored real booleans, so diagnostics
+        showed `i=no` and `isDaytime` saw `false` instead of an hour.
+      changes:
+        - "i.js:1011 advanceTimers: this.z = 0 (was false)."
+        - "i.js:1513 updateEntities: this.i = 1 (was true)."
+        - "i.js:2377 advanceClock: this.i = 0 (was false)."
+      effect: "The hour counter stays numeric; queueMessage/showMessageDialog log i=0/small integer instead of i=no."
+    integer_clock_division:
+      cause: >
+        i.java:2638 computes `A = (z - 12) / 24` with Java int division, which
+        truncates toward zero. JS kept the fractional result, producing
+        aProgress=-0.458/-0.292/-0.417 while z < 12.
+      change: "i.js:2358 uses Math.trunc((this.z - 12) / 24)."
+      effect: "aProgress is now the byte value 0..30 that the bytecode expects."
+    predicate_diagnostics:
+      cause: >
+        _isDaytime/isDaytime are predicates: returning false at hour 0 is
+        correct, but DIAG_META compared only the hour range and printed DIFIERE.
+      change: >
+        diagnostico() accepts an optional `resultado`; predicates compute it
+        first and pass it in, so `esperado` is a predicate and the check
+        compares the returned boolean with `6<=i<=17`.
+      effect: "A legitimate night value now logs OK with resultado=no."
+  still_open:
+    wrong_b_overload:
+      site: "i.js:1361 -> this.canUseCurrentItemStub(b2, b3)"
+      java: "i.java:1069 uses b(byte,byte), i.java:7895 = isInTileListC."
+      note: >
+        canUseCurrentItemStub is the no-arg b() from i.java:1618 and was never
+        meant to receive coordinates; it returns true unconditionally. Replacing
+        it with isInTileListC would temporarily restore the freeze because the
+        C list is created with invalid JS (`new short[7]`, i.js:7602) and is
+        undefined at runtime. Left as-is deliberately; movement currently works.
+    raf_violations:
+      note: >
+        "[Violation] requestAnimationFrame handler took <N>ms" comes from the
+        browser/DevTools around the first heavy paint (20+ one-time console
+        lines). No requestIdleCallback exists in src/, so that 203 ms entry is
+        browser/extension noise. Neither is a gameplay exception.
+  verification:
+    - "node --check src/game/i.js -> OK."
+    - "npm test -> 33/33."
+
+  second_capture_2026_11_18:
+    source: "docs/logs.txt reescrito (59 líneas, 04:54)"
+    confirmed_ok:
+      - "isDaytime/_isDaytime now log resultado=no | OK: the predicate fix works."
+      - "aProgress stays 0 in the first ticks and only reaches 30 at the scripted reset; no negative values."
+      - "i is numeric everywhere: queueMessage/showMessageDialog report i=0, never i=no."
+      - "Movement continues after keyPressed(3): d advances 0->1->16, h stays numeric (7, 2, 7)."
+      - "canUseCurrentItemStub(1,0) no longer freezes the frame; it stays a no-op gate."
+    new_false_positive:
+      symptom: "constructor and resetGameState reported H=indefinido, skyBand=indefinido | DIFIERE."
+      cause: >
+        Both diagnostics ran on method entry, before resetGameState assigns
+        this.H/this.skyBand. The values were already correct a few lines later.
+      fix: >
+        constructor logs after resetGameState() returns; resetGameState logs at
+        its end. loadTileData also logs after reading the 4-byte header (the
+        early-return and catch branches still emit a line), so mapW/mapH now
+        show the real 30x40 instead of undefined.
+    still_open:
+      - "19 requestAnimationFrame violations: DevTools/paint timing, no gameplay exception."
+      - "canUseCurrentItemStub remains the wrong b() overload; see wrong_b_overload above."
+    verification:
+      - "node --check src/game/i.js -> OK."
+      - "npm test -> 33/33."
+
+  third_capture_2026_11_18:
+    source: "docs/logs.txt (56 líneas, 05:03)"
+    result: >
+      Captura limpia: cero líneas DIFIERE. constructor/resetGameState reportan
+      H=76, skyBand=93 | OK y loadTileData reporta mapW=30, mapH=40,
+      viewport=27x39. isDaytime/_isDaytime y advanceClock siguen en OK; i se
+      mantiene numérico y aProgress en 0..30. No aparece ninguna violation de
+      requestAnimationFrame en esta captura. El movimiento tras keyPressed(3)
+      continúa sin freeze (d=-1, e=1, h=5). Sin cambios de código respecto a la
+      captura anterior.

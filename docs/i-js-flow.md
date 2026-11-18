@@ -21,7 +21,10 @@ inner classes into a single file, which is why names are repeated (`i`, `j`, `a`
 - Module-level "loose" field declarations (`i.js:12-17`): the port retained Java-style
   references (`A`, `B`, ...), which are declared here to avoid `ReferenceError`. They
   are not actual state.
-- Render debugging (`i.js:107-140`): `dbgR`, `dbgOnce`, gated by `__WM_DEBUG_RENDER`.
+- Structured diagnostics (`i.js:105-317`): `diagnostico()`, `DIAG_META` y `DIAG_VISTOS`.
+  Cada método emite **una** línea en consola la primera vez que se ejecuta, con
+  nombre generalizado en español y comparación `esperado` vs `actual` tomada de los
+  bytecode comentados y de las constantes del port. No se dibuja nada en el canvas.
 - Class `i` (`i.js:421`) and the "level-1 store" at the end (`i.js:8026-8036`), which
   copies static methods to the prototype so `this.method(...)` resolves.
 
@@ -53,7 +56,11 @@ Base-class hook; in this port it is practically empty (actual startup happens in
 
 ### Keyboard input — `keyPressed(code)` (`i.js:804-849`)
 
-Clears `this.bCam[0..8]` and maps the J2ME code to movement/action indices:
+Clears `this.bCam[0..8]` to `false` and maps the J2ME code to exactly one
+movement/action slot set to `true`. `updateEntities()` consumes a slot only when
+it is `=== true` (Java used `byte[]` with `0`/`1` and `!= 0`); it must not test
+`!== null`, because `false !== null` previously activated all nine branches at
+once and froze the frame.
 
 | code  | action                       |
 |------:|------------------------------|
@@ -95,9 +102,7 @@ paintScreen(g)                         i.js:524
          ├─ _renderEntities(1, g)       i.js:3340
          ├─ _renderEntities(0, g)
          ├─ _renderEntities(2, g)
-         ├─ (debug) tuft drawing pass   [__WM_DEBUG_TUFTS only]
          └─ _renderMinimap(g)           i.js:4120
- └─ debug HUD (__WM_DEBUG_HUD !== false)  i.js:535-551
 ```
 
 ### 3.1 Terrain / sky — `_renderTerrainInner` (`i.js:3416`)
@@ -188,44 +193,46 @@ and differ in details.
 
 ---
 
-## 7. Horizon tufts and `__WM_DEBUG_TUFTS`
+## 7. Horizon tufts
 
-The "tuft" scatter block (`i.java:7405-7441`) was ported to `renderTileColumn16`
-(`i.js:7060-7102`). Diagnostics:
-
-- `i7` is the **number of scanlines** in the band, not a tile ID.
-- With `H=76` (`i.java:579`), `I=93`, and `J=I*40/100=37` (`i.java:7016-7023`), the
-  16-argument calls produce heights 37/56 (sky), 53/23 (terrain), and 7/20 (entities).
-  `i7 === 66` **never occurs**.
-- Also, in Java the `u/v/e` arrays are only written to and reset (`i.java:3170-3188`);
-  they are never read for drawing. This is dead code in the original as well.
-- Therefore, `tuftCount` remains 0, faithfully.
-
-To inspect them on screen, there is a debug toggle, off by default:
-
-```
-__WM_DEBUG_TUFTS = true
-```
-
-It enables three things:
-1. Resets `tuftCount` at the start of every frame (`i.js:2490`);
-2. Forces the `i7 === 66` gate to `i7 === 66 || __WM_DEBUG_TUFTS` (`i.js:7079`), so the
-   scatter runs in the entity bands (at y≈76/83, across the screen);
-3. Draws each point in `_renderAll` (`i.js:2496-2505`): cyan if `tuftFlag` is 1, magenta
-   if 0, using `fillRect(x, y, 2, 2)`, and logs the count every 60 frames.
-
-With the flag off, behavior is identical to the faithful port (`tuftCount === 0`).
+The "tuft" scatter block (`i.java:7405-7441`) was ported to `renderTileColumn16`.
+The old `__WM_DEBUG_TUFTS` toggle (forced scatter + `fillRect` points + periodic
+console count) was removed: nothing is drawn on the canvas for diagnostics.
+The Java behaviour is unchanged: `i7` is a scanline count, `i7 === 66` never
+occurs, and `u/v/e` are only written and reset, so `tuftCount` remains 0.
 
 ---
 
-## 8. Relevant debug toggles
+## 8. Diagnostics and toggles
+
+Every method of `i.js` calls `diagnostico()` once on its first execution. The
+console line carries a generalised Spanish name (e.g. `Renderizando césped y
+franjas de cielo`), the `esperado` value from the commented bytecode and the
+`actual` runtime value, with `OK` / `DIFIERE` / `SIN REFERENCIA`. Predicates such
+as `isDaytime` pass their computed `resultado` as a fourth argument so a correct
+`no` is not mistaken for a mismatch.
+
+After the `bCam` fix, `docs/logs.txt` confirms the sky/terrain constants
+(`H=76`, `J=93`, ground `169`, sprite `269`) and numeric movement. Three
+remaining log anomalies were traced to decompiled `byte`/`boolean` merges:
+`advanceTimers` wrote `z=false`, `updateEntities` wrote `i=true`, and
+`advanceClock` wrote `i=false` plus a fractional `(z-12)/24`. They are now
+`0`, `1`, `0` and `Math.trunc(...)`, matching Java int semantics. The only
+remaining mis-mapping is `canUseCurrentItemStub(b2,b3)` at `i.js:1361`: Java
+calls `b(byte,byte)` there, but switching to `isInTileListC` would reintroduce
+the freeze because the `C` list is built with invalid `new short[7]` JS.
+
+The later 59-line capture confirmed those fixes (`resultado=no | OK`, `i=0`,
+`aProgress=0..30`, movement `d=0->1->16`) and exposed two initialization false
+positives: `constructor`/`resetGameState` logged before `H`/`skyBand` existed and
+`loadTileData` logged before reading the 4-byte header. Their `diagnostico()`
+calls now run where those values are available, still once per method.
+
+Remaining toggles:
 
 | flag | effect |
 |---|---|
-| `__WM_DEBUG_RENDER` | `[dbg-render]` logs from `i.js` (ON by default) |
-| `__WM_DEBUG_HUD` | State overlay in `paintScreen` (ON by default) |
 | `__WM_DEBUG_AUTOMOVE` | Forces `bCam[0]` in `update` |
-| `__WM_DEBUG_TUFTS` | Forced scatter + point drawing (OFF by default) |
 | `__WM_DEBUG_DRAW` | Sprite/atlas trace in `resources/c.js` |
 
 ---
