@@ -95,12 +95,14 @@ lifecycle:
     sequence:
       - "updateAmbientParticles(dt)"
       - "updatePlacementState(dt)"
-      - "Accumulates dt and advances the clock by calling advanceClock(1)."
-      - "updateEntities()"
+      - "updateEntities(): entity AI/movement; advanceClock(1) runs only after a completed step (i.java:1178)."
       - "If __WM_DEBUG_AUTOMOVE is active, forces bCam[0]."
-    tick_rate:
-      when_C_is_zero_ms: 16
-      otherwise_ms: 800
+    clock:
+      driver: "successful tile movement, not dt"
+      previous_bug: >
+        A dt accumulator called advanceClock(1) every 16/800 ms, so i=6/i=18
+        dialogs could open without input and block updateEntities().
+      initial_C: 100  # i.java:7139; was 0, which also blocked every movement step
     error_handling: >
       Several stages are isolated with try/catch and write warnings to the
       console; other render helpers catch exceptions without logging them.
@@ -816,3 +818,22 @@ log_analysis_2026_11_18:
       requestAnimationFrame en esta captura. El movimiento tras keyPressed(3)
       continúa sin freeze (d=-1, e=1, h=5). Sin cambios de código respecto a la
       captura anterior.
+
+  clock_and_freeze_fix_2026_11_18:
+    source: "Reporte del usuario: 'solo debe avanzar al moverse' + verificación CDP"
+    changes:
+      - "Eliminado el bucle de dt en update(dt) que llamaba a advanceClock(1) cada 16/800 ms."
+      - "advanceClock(1) se llama ahora en updateEntities() justo tras partyTickStub, en el punto de i.java:1178 j(1)."
+      - "resetGameState() inicializa C=100 (i.java:7139) en vez de 0."
+      - "DIAG_META de update/resetGameState actualizada: reloj por paso y C=100."
+    diagnosis: >
+      Con C=0 inicial, updateEntities() salía siempre por `C <= 0`: la partida
+      arrancaba bloqueada. El reloj por temporizador acababa poniendo C=1 y
+      disparando los diálogos de i=6/i=18 sin que el jugador se moviera, lo que
+      explicaba el congelamiento repentino.
+    verification:
+      - "node --check src/game/i.js -> OK."
+      - "npm test -> 33/33."
+      - "CDP: entrada [i,0,0,0,0,0,100,false]; tras 6 s sin teclas idéntico."
+      - "CDP: tecla 4 -> [i,0,-1,1,1,0,100,false]; tecla 2 solo gira, sin cambio de reloj."
+      - "CDP: cero excepciones."

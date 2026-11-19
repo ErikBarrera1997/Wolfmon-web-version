@@ -79,13 +79,15 @@ once and froze the frame.
 
 1. `updateAmbientParticles(dt)` (`i.js:1050`) — weather/ambient particles.
 2. `updatePlacementState(dt)` (`i.js:1042`) — placement/building state.
-3. Clock loop: accumulates `dt` and calls `advanceClock(1)` (`i.js:2158`) every 16 ms
-   (day) or 800 ms (night/depending on `C`).
-4. `updateEntities()` (`i.js:1126`) — entity AI/movement.
-5. `__WM_DEBUG_AUTOMOVE` forces `bCam[0]` for testing.
+3. `updateEntities()` — entity AI/movement. On a completed step, and only then,
+   it calls `advanceClock(1)` at the Java `j(1)` site (`i.java:1178`).
+4. `__WM_DEBUG_AUTOMOVE` forces `bCam[0]` for testing.
 
-`advanceTimers(dt)` (`i.js:851`) is another gameplay timer accumulator (autosave,
-events, objectives) that runs through its own path.
+There is no clock loop in `update(dt)` any more: the previous `dt` accumulator
+advanced the hour every 16/800 ms and could open the `i=6`/`i=18` dialog without
+player input, leaving the game waiting for a dialog close. `advanceTimers(dt)`
+(`i.advanceTimers`, currently unwired) is a separate gameplay timer accumulator
+(autosave, events, objectives).
 
 ---
 

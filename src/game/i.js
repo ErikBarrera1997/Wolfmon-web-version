@@ -187,14 +187,13 @@ const DIAG_META = {
   constructor: diagM('Inicializando estado del juego', 'H=76, skyBand=93, viewport=176x208',
     (s) => 'H=' + diagVal(s.H) + ', skyBand=' + diagVal(s.skyBand),
     (s) => s.H === 76 && s.skyBand === 93),
-  resetGameState: diagM('Reiniciando estado del juego', 'H=76, skyBand=93, clip=0,0,176,208',
-    (s) => 'H=' + diagVal(s.H) + ', skyBand=' + diagVal(s.skyBand),
-    (s) => s.H === 76 && s.skyBand === 93),
+  resetGameState: diagM('Reiniciando estado del juego', 'H=76, skyBand=93, C=100, clip=0,0,176,208',
+    (s) => 'H=' + diagVal(s.H) + ', skyBand=' + diagVal(s.skyBand) + ', C=' + diagVal(s.C),
+    (s) => s.H === 76 && s.skyBand === 93 && s.C === 100),
   paintScreen: diagM('Pintando pantalla completa', 'clip=0,0,176,208',
     () => 'clip=0,0,176,208', () => true),
-  update: diagM('Actualizando fotograma', 'tick=16 si C=0, 800 en otro caso',
-    (s) => 'C=' + diagVal(s.C) + ' -> tick=' + (s.C === 0 ? 16 : 800),
-    (s) => s.C === 0 || s.C !== 0),
+  update: diagM('Actualizando fotograma', 'sin reloj por temporizador; avanza solo en updateEntities',
+    (s) => 'C=' + diagVal(s.C) + ', reloj=por paso', (s) => s.C > 0),
   screenEntered: diagM('Entrando en la pantalla de juego', 'estado inicial conservado', diagEstado),
   keyPressed: diagM('Procesando tecla pulsada', 'código mapeado a bCam[0..8]',
     (s, a) => 'código=' + diagVal(a[0]) + ' ' + diagEstado(s)),
@@ -676,7 +675,10 @@ export class i extends Screen {
     this.m = -1;
     this.aProgress = 0;
     this.A = Array(256).fill(0);
-    this.C = 0;
+    // i.java:7139 inicializa la energía/vida a 100. Dejarla a 0 hacía que
+    // updateEntities() saliera siempre por `C <= 0`: la partida arrancaba
+    // congelada hasta que el reloj por temporizador la cambiaba a 1.
+    this.C = 100;
     this.F = 0;
     k = k || new Int16Array(64);
     G = 0;
@@ -745,17 +747,10 @@ export class i extends Screen {
     } catch (_e) {
       
     }
-    this._tickAcc = this._tickAcc || 0;
-    this._tickAcc += dt;
-    const tickRate = this.C === 0 ? 16 : 800;
-    while (this._tickAcc >= tickRate) {
-      this._tickAcc -= tickRate;
-      try {
-        i.advanceClock.call(this, 1);
-      } catch (_e) {
-        
-      }
-    }
+    // El reloj no avanza por temporizador: i.java:1178 llama a j(1) solo
+    // después de completar un paso. El bucle temporal anterior abría diálogos
+    // de amanecer/atardecer en i=6/18 sin que el jugador se moviera y podía
+    // dejar el juego bloqueado esperando a cerrarlos.
     if (globalThis.__WM_DEBUG_AUTOMOVE) {
       this.bCam[0] = true;
     }
@@ -1468,7 +1463,8 @@ isDaytime() {
             this.updateEntityTimers(1);
             if (this.m === -1) {
               this.partyTickStub(this.prevX, this.g);
-              this.stepCounterStub(1);
+              // i.java:1178 j(1): una hora por paso completado, nunca por dt.
+              i.advanceClock.call(this, 1);
               this.randomEncounterStub();
               this.stepSoundStub();
             }
