@@ -24,8 +24,12 @@ export class Graphics {
     this._clipStack = [];
   }
 
-  setColor(rgb) {
-    this._color = rgb & 0xffffff;
+  setColor(rgb, g, b) {
+    // Java expone setColor(int rgb) y setColor(int r, int g, int b); los
+    // gradientes del juego usan la segunda forma.
+    this._color = (g === undefined || b === undefined)
+      ? (rgb & 0xffffff)
+      : (((rgb & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff));
     this._applyColor();
   }
 

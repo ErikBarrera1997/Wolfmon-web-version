@@ -413,8 +413,12 @@ export class i extends Screen {
     // classes (this.u/this.v are reassigned to plain numbers, this.a is the
     // Random, this.e is the player tile Y), so the buffers get their own names.
     this.tuftX = new Int16Array(130);
-    this.tuftY = new Int8Array(130);
+    // java v[] es short[] (i.java:565): 103..169 no cabe en un Int8Array.
+    this.tuftY = new Int16Array(130);
     this.tuftFlag = new Int8Array(130);
+    // java d[] (flag de visibilidad de tufts). No se reutiliza this.d porque
+    // en el port ese campo es la coordenada X del jugador (i.java:479-480).
+    this.tuftVisible = Array(130).fill(0);
     this.tuftCount = 0;
     this.tuftEnabled = true;
     this.f = new Int32Array(2);
@@ -2484,6 +2488,9 @@ isDaytime() {
   }
   
   static _renderAll(paramGraphics, paramBoolean) {
+    // i.java:2518-2540 resetea u/v/e y el contador a al empezar cada frame.
+    // d[] (el flag de visibilidad) NO se resetea: el tick de M>300 lo alterna.
+    this.tuftCount = 0;
     // Cada etapa se pinta en su propio clip para que un fillRect/gradient de
     // una etapa no termine borrando lo que dibujaron las anteriores.
     const clip = [paramGraphics.getClipX(), paramGraphics.getClipY(),
@@ -2495,15 +2502,60 @@ isDaytime() {
       } catch (_e) {}
     };
     stage(i._renderTerrain, paramGraphics);
+    stage(i._paintGroundBands, paramGraphics);
+    stage(i._scatterCurrentTufts);
+    stage(i._paintTufts, paramGraphics);
     stage(i._renderOverlay, paramGraphics);
     stage(i._renderEntities, 1, paramGraphics);
     stage(i._renderEntities, 0, paramGraphics);
     stage(i._renderEntities, 2, paramGraphics);
+    stage(i._paintTerrainTexture, paramGraphics);
     stage(i._renderMinimap, paramGraphics);
     if (!paramBoolean) return;
     stage(i._renderUI, paramGraphics);
     paramGraphics.setClip(clip[0], clip[1], clip[2], clip[3]);
     i._flushMapSpriteMove.call(this);
+  }
+
+  static _scatterCurrentTufts() {
+    // i.java:7425-7437 reparte tufts en u/v/e mientras dibuja el decor de la
+    // casilla, pero bajo `i7 === 66` (número de scanlines), una rama muerta con
+    // los tamaños reales de strip (37/56/53/23 y 7/20). Se generan aquí, antes
+    // de pintarlos, para la casilla del jugador. La columna (0,103,176,66) es
+    // la misma que _renderEntities pasa a _drawTerrainColumn.
+    try {
+      const x = this.d;
+      const y = this.e;
+      let rState = ((x + 91) * 374761393 + (y + 43) * 668265263 + 17 * 2246822519) >>> 0;
+      if (rState === 0) rState = 1;
+      const rr = (lo, hi) => {
+        rState = (rState * 48271 + 1) >>> 0;
+        return lo + (rState % (hi - lo + 1));
+      };
+      for (let t = 0; t < 3; t++) {
+        if (rr(0, 100) >= 80 || this.tuftCount >= this.tuftX.length) break;
+        const idx = this.tuftCount++;
+        this.tuftX[idx] = rr(0, 176);
+        this.tuftY[idx] = rr(103, 169);
+        this.tuftFlag[idx] = rr(0, 100) < 50 ? 1 : 0;
+        this.tuftVisible[idx] = 1;
+      }
+    } catch (_e) {}
+  }
+
+  static _paintTufts(paramGraphics) {
+    // i.java:5514-5525 (paintScreen). Los tufts se pintan justo después del
+    // fondo, antes de los objetivos y del HUD. d[b] es el flag de visibilidad
+    // que el tick de M>300 alterna; e[b] elige entre o[j] (407-411) y p[j]
+    // (412-416). j deriva del total de tufts y del índice, no de la hora.
+    try {
+      for (let b = 0; b < this.tuftCount; b++) {
+        if (!this.tuftVisible[b]) continue;
+        const j = Math.trunc((this.tuftCount + b * 150) / 175) % this.oVals.length;
+        const sprite = this.tuftFlag[b] !== 0 ? this.oVals[j] : this.pVals[j];
+        cRes.drawSprite(sprite, this.tuftX[b], this.tuftY[b], paramGraphics);
+      }
+    } catch (_e) {}
   }
 
   static _renderUI(paramGraphics) {
@@ -3327,17 +3379,41 @@ isDaytime() {
     let k = 42;
     while (true) {
       while (j < 176) {
-        this.c.a(j, k, 269, paramGraphics);
-        j += this.c.a(269, 2);
+        c.a(j, k, 269, paramGraphics);
+        j += c.a(269, 2);
       }
       if (k < 126) {
-        k += this.c.a(269, 3);
+        k += c.a(269, 3);
         j = 0;
         continue;
       }
       paramGraphics.setClip(0, 0, 176, 208);
       return;
     }
+  }
+
+  static _paintTerrainTexture(paramGraphics) {
+    // Java a(Graphics,boolean) (i.java:3237-3325) tesela el sprite 269 en dos
+    // franjas estrechas junto a cada columna de entidades, pero sólo cuando el
+    // flag de partida i.c está activo. En una partida normal ese flag es falso:
+    // forzar el teselado cubre el horizonte y las copas de los árboles con un
+    // rectángulo opaco (as.png no tiene transparencia), así que se respeta la
+    // condición del Java. El port no enlaza i.c, por lo que no se dibuja salvo
+    // que el estado se active explícitamente.
+    if (this.c !== true) return;
+    try {
+      const i2 = -128 + this.h * 32;
+      const i3 = i2 + 64;
+      for (let b = 0; b < 8; b++) {
+        const ex = this.d + hDayBounds[this.h][b * 2];
+        if (ex < i2 - 10 || ex > i3 + 10) continue;
+        const extra = (b === 7) ? 28 : 0;
+        const t1 = Math.trunc(1000 * (ex - i2) / 64);
+        const x13 = Math.trunc(t1 * 176 / 1000) - 28;
+        i._fillTerrainBg.call(this, x13, 0, 57, 56, paramGraphics);
+        i._fillTerrainBg.call(this, x13, 112 + extra, 57, 169 - (112 + extra), paramGraphics);
+      }
+    } catch (_e) {}
   }
   
   static _renderEntities(paramInt, paramGraphics) {
@@ -3412,6 +3488,25 @@ isDaytime() {
   
   static _renderTerrain(paramGraphics) {
     try { i._renderTerrainInner.call(this, paramGraphics); } catch(_e) {  }
+  }
+
+  static _paintGroundBands(paramGraphics) {
+    // i.java:4045-4052 (c(Graphics)) pinta el suelo del horizonte justo después
+    // del cielo y antes de las columnas de terreno. J = I*40/100 = 37 con
+    // I = 169-H = 93, así que las dos bandas cubren H..H+J y H+J..169.
+    try {
+      const J = Math.floor(this.skyBand * 40 / 100);
+      const upperNear = this._getTerrainColor(0, true, true);
+      const upperFar = this._getTerrainColor(0, true, false);
+      i._drawTileGradient.call(this, J, this.H, this.H + J, upperNear, upperFar,
+        0, this.H, 0, this.H + J, 176, this.H, 176, this.H + J,
+        paramGraphics, 0, false);
+      const lowerNear = this._getTerrainColor(0, false, true);
+      const lowerFar = this._getTerrainColor(0, false, false);
+      i._drawTileGradient.call(this, this.skyBand - J, this.H + J, 169, lowerNear, lowerFar,
+        0, this.H + J, 0, 169, 176, this.H + J, 176, 169,
+        paramGraphics, 0, false);
+    } catch (_e) {}
   }
 
   static _renderTerrainInner(paramGraphics) {
@@ -3651,8 +3746,11 @@ isDaytime() {
   }
   
   static _drawEntityMask(paramByte1, paramByte2, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics) {
+    // Java b(byte,byte,...) (i.java:4279-4285) starts with the house/tree
+    // sprites 262-265, then the object, animation and overlay. The porter had
+    // the clip routine here, so owner 17 was never drawn.
     try {
-      i._drawEntityClip.call(this, paramByte1, paramByte2, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics);
+      i._drawEntityHouse.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramByte2, paramGraphics);
     } catch(_e) {}
     try {
       i._drawEntityObject.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramByte2, paramGraphics);
@@ -3663,7 +3761,7 @@ isDaytime() {
       } catch(_e) {}
     }
     try {
-      i._drawEntityOverlay.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramGraphics);
+      i._drawEntityOverlay.call(this, paramInt1, paramInt2, paramInt4, paramByte1, paramByte2, paramGraphics);
     } catch(_e) {}
   }
   
@@ -4098,24 +4196,35 @@ isDaytime() {
   static _drawEntityHouse(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics) {
     let j;
     if ((j = this.tileFieldBits(paramInt5, paramInt6, 0, 7)) !== 6)
-      return; 
-    let k = paramInt1 + (paramInt3 >> 1) + this.randomBetween(-3, 3, b);
-    let m = paramInt2 + (paramInt4 >> 1) + this.randomBetween(-1, 1, b);
+      return;
+    // Java seeds the shared `b` Random once per frame (i.java:3158). That
+    // module variable is never initialized in the port, so use a local LCG
+    // seeded by the tile and heading, like _scatterCurrentTufts(). This must
+    // not consume the gameplay Random this.a.
+    let rState = ((paramInt5 + 91) * 374761393 + (paramInt6 + 43) * 668265263 + (this.h + 17) * 2246822519) >>> 0;
+    if (rState === 0) rState = 1;
+    const rr = (lo, hi) => {
+      rState = (rState * 48271 + 1) >>> 0;
+      return lo + (rState % (hi - lo + 1));
+    };
+    let k = paramInt1 + (paramInt3 >> 1) + rr(-3, 3);
+    let m = paramInt2 + (paramInt4 >> 1) + rr(-1, 1);
+    const nightVariant = (this.i >= 19 && this.i <= 23) || (this.i >= 0 && this.i <= 4);
     if (paramInt4 === 20) {
-      if ((i >= 19 && i <= 23) || (i >= null && i <= 4)) {
+      if (nightVariant) {
         c.a(k, m, 264, paramGraphics);
         return;
-      } 
+      }
       c.a(k, m, 262, paramGraphics);
       return;
-    } 
+    }
     if (paramInt4 === 7) {
-      if ((i >= 19 && i <= 23) || (i >= null && i <= 4)) {
+      if (nightVariant) {
         c.a(k, m, 265, paramGraphics);
         return;
-      } 
+      }
       c.a(k, m, 263, paramGraphics);
-    } 
+    }
   }
   
   static _renderMinimap(paramGraphics) {
@@ -4582,6 +4691,9 @@ isDaytime() {
     }
     if (!paramBoolean2)
       b = 1;
+    // Java indexa h.a[fila][bool] con un entero 0/1; en JS `arr[false]` es la
+    // propiedad "false", no el índice 0, y devolvía undefined (negro al pintar).
+    const colorIdx = bool ? 1 : 0;
     switch (paramInt) {
       case 0:
       case 1:
@@ -4589,9 +4701,9 @@ isDaytime() {
       case 3:
       case 4:
       case 5:
-        return paramBoolean1 ? hColorThresholds[0 + b][bool] : hColorThresholds[2 + b][bool];
+        return paramBoolean1 ? hColorThresholds[0 + b][colorIdx] : hColorThresholds[2 + b][colorIdx];
       case 7:
-        return paramBoolean1 ? hColorThresholds[4 + b][bool] : hColorThresholds[6 + b][bool];
+        return paramBoolean1 ? hColorThresholds[4 + b][colorIdx] : hColorThresholds[6 + b][colorIdx];
     }
     return 0;
   }

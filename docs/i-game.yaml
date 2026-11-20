@@ -120,7 +120,7 @@ render_pipeline:
   main_frame:
     javascript: "i._renderAll(g, true)"
     steps:
-      - "Renders the terrain and sky."
+      - "Renders the terrain and sky and the two ground bands; the sprite-269 carpet strips stay gated by i.c."
       - "Runs entity passes in the order 1, 0, and 2."
       - "Renders the minimap."
       - "Diagnostic tuft points were removed; no toggle draws on the canvas."
@@ -143,6 +143,8 @@ render_pipeline:
       - "Then draws the horizon terrain column."
     entity_helpers:
       clipping: "i._drawEntityClip(...)"
+      house_trees: "i._drawEntityHouse(...)"
+      carpet: "i._paintTerrainTexture(...) / i._fillTerrainBg(...)"
       mask_object_overlay: "i._drawEntityMask(...)"
       object_shadow: "i._drawEntityObject(...)"
       overlay: "i._drawEntityOverlay(...)"
@@ -205,7 +207,10 @@ java_to_javascript:
       purpose: "Entity drawing clipped to bands."
     - java: "b(byte, byte, int, int, int, int, int, Graphics)"
       javascript: "_drawEntityMask(...)"
-      purpose: "Mask pass, object, and additional layers."
+      purpose: "House/tree sprites 262-265, object, animation, and overlay."
+    - java: "b(int, int, int, int, Graphics)"
+      javascript: "_paintTerrainTexture(...) / _fillTerrainBg(...)"
+      purpose: "Tiles sprite 269 into narrow strips beside the entity columns."
     - java: "a(int, int, int, int, int, int, Graphics)"
       javascript: "_drawEntityObject(...)"
       purpose: "Draw the object/shadow associated with an entity."
@@ -315,14 +320,121 @@ known_port_differences:
     impact: "Special animations and drawing associated with renderRegion may not appear."
   - id: "entity-overlay-arguments"
     severity: "render"
-    status: "confirmed-call-site-mismatch"
+    status: "resolved"
     javascript: >
-      _drawEntityMask() passes the rectangle's width and height to
-      _drawEntityOverlay() in the positions the helper uses for the type and
-      tile coordinates; it also does not pass both tile coordinates.
+      _drawEntityMask() previously called _drawEntityOverlay() with
+      (paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, g), putting the
+      rectangle width where the helper reads the size and the literal 7 where
+      it reads the tile X, and omitting the tile Y. It now passes
+      (paramInt1, paramInt2, paramInt4, paramByte1, paramByte2, g), matching
+      the helper's (x, y, size, tileX, tileY, g) signature.
     impact: >
-      Overlay sprite selection may use an incorrect type/terrain or fail to
-      draw the layer.
+      Fixed. Runtime instrumentation confirmed that owner 18 tree sprites
+      (266-268 / 357-359) are now drawn during a normal paint; before the fix
+      the overlay produced zero draws.
+  - id: "entity-house-sprites"
+    severity: "render"
+    status: "resolved"
+    java: >
+      b(byte,byte,...) at i.java:4279-4285 calls b(...) at i.java:4666-4687
+      first, which draws sprites 262-265 (houses/trees) for tiles of type 6.
+    javascript: >
+      _drawEntityMask() called _drawEntityClip() in that slot, so owner 17 had
+      zero draws. It now calls _drawEntityHouse() with the same seven arguments
+      as Java (x, y, w, h, tileX, tileY, g); the first port attempt passed eight
+      arguments, so the Graphics object landed in the wrong parameter and the
+      draw threw. That helper also used an uninitialized module-level `b` as a
+      Random and compared the module `i` against hours; it now uses a local LCG
+      seeded by tile and heading (it does not consume this.a) and compares
+      this.i for the night variant.
+    impact: >
+      Fixed. Owner 17 sprites are reachable again without changing movement or
+      the clock; the earlier zero-draw state had left the tree crowns with the
+      wrong/underlying texture.
+  - id: "terrain-carpet-sprite"
+    severity: "render"
+    status: "faithful-to-java-gated"
+    java: >
+      a(Graphics,boolean) at i.java:3237-3325 calls b(x,0,57,56,g) and
+      b(x,112+extra,57,169-(112+extra),g) per entity column, but only inside
+      `if (i.c)`. b(int,int,int,int,g) at i.java:3970-3984 tiles sprite 269
+      between y=42 and y=126.
+    javascript: >
+      _fillTerrainBg() existed but was never called and used this.c.a(...)
+      instead of the module resource facade c.a(...), so it threw immediately.
+      It now routes through c.a(...), and _paintTerrainTexture() reproduces the
+      two clipped strips per column. Because i.c is a save-data flag that the
+      port never enables, the stage returns unless this.c === true. Forcing it
+      in a normal game paints the fully opaque as.png over the horizon band and
+      tree crowns, which is the reported wrong-texture/incomplete-horizon bug.
+    impact: >
+      The helper is functional and faithful, but sprite 269 is intentionally
+      not drawn in a normal new game; enable this.c only for the matching state.
+  - id: "horizon-visibility-conditional"
+    severity: "visual-conditional"
+    status: "faithful-to-java"
+    java: >
+      _renderTerrainInner() only draws sprites 360-374 when the clock-derived
+      b1 is nonzero and not 1 (dusk/dawn buckets), and the horizontal position
+      additionally depends on the numeric heading h.
+    javascript: >
+      At the initial state (this.i = 0, this.h = 0) b1 is 0, so no horizon
+      sprites are drawn. Probes with this.i in {6, 18} and headings 1, 2, 3, 5,
+      6 did draw horizon owners 48/49/50; heading 0 placed them off screen.
+    impact: >
+      The absence of time-of-day horizon sprites at game start is expected
+      behavior, not a missing resource. The per-tile tufts added below are
+      independent of this bucket and do draw at i=0.
+  - id: "tuft-horizon-sprites"
+    severity: "render"
+    status: "resolved"
+    java: >
+      i.java:7425-7437 scatters horizon tufts into u[]/v[]/e[] while drawing a
+      tile's decor strip, but only under i7===66 (a scanline count that never
+      occurs with the real strip sizes). paintScreen() at i.java:5514-5525
+      reads those arrays: d[b] gates drawing, e[b] selects o[j] (407-411) or
+      p[j] (412-416), and j=(a+b*150)/175%o.length.
+    javascript: >
+      oVals/pVals were declared but never used, tuftY was an Int8Array (so the
+      Java short range 103..169 overflowed negative), and the scatter branch
+      was unreachable. _scatterCurrentTufts() now repopulates the buffers for
+      the player's tile with a tile-seeded local RNG (it does not consume the
+      gameplay Random this.a); _renderAll() stages it before _paintTufts(),
+      which mirrors paintScreen() using tuftVisible[] for the java d[] flag.
+    impact: >
+      Fixed. CDP instrumentation confirmed three tuft draws per paint at the
+      initial state (sprites 407/412/408, owner 57) and an 8-pixel delta
+      against a paint with _paintTufts() stubbed out. The sprites are 10x1
+      strips in the atlas, so the visual change is intentionally subtle.
+  - id: "horizon-ground-bands"
+    severity: "render"
+    status: "resolved"
+    java: >
+      a(Graphics, boolean) calls d(Graphics) (sky) then c(Graphics) at
+      i.java:3206-3208. c() paints two gradient bands between y=H (76) and
+      y=169 using J=I*40/100=37: H..H+J and H+J..169.
+    javascript: >
+      The c() equivalent was missing, so rows 76..100 were left as bare sky.
+      _paintGroundBands() now runs from _renderAll() right after
+      _renderTerrain(), before tufts and entity/terrain columns.
+    impact: >
+      Fixed. CDP pixel probe at the initial state went from ~158 black pixels
+      per row in y=76..100 to zero fully black rows in y=76..169; the ground
+      renders as a dark olive/brown gradient.
+  - id: "graphics-3arg-setColor"
+    severity: "render"
+    status: "resolved"
+    java: >
+      javax.microedition.lcdui.Graphics defines setColor(int rgb) and
+      setColor(int r, int g, int b); the game's gradient helpers call the
+      three-argument form.
+    javascript: >
+      Graphics.setColor() in src/images/Graphics.js only accepted one argument,
+      so setColor(r,g,b) silently became rgb=r and painted (0,0,r). The overload
+      now packs r/g/b into the RGB integer.
+    impact: >
+      Fixed together with the ground bands; sky gradients and decor strips also
+      use the correct channel order now.
   - id: "terrain-color-hour"
     severity: "render"
     status: "confirmed-in-source"
@@ -367,14 +479,12 @@ known_port_differences:
       unexpected or invalid bounds/palettes.
   - id: "debug-tuft-rng"
     severity: "debug-only"
-    status: "confirmed-side-effect"
+    status: "obsolete"
     javascript: >
-      __WM_DEBUG_TUFTS forces the tuft scatter branch, which consumes this.a,
-      the Random shared with gameplay. Without the toggle, the normal
-      i7===66 case is not reached with the band sizes at current call sites.
-    impact: >
-      Enabling diagnostics changes the game's subsequent random sequence; this
-      is not an observation-only mode.
+      The old __WM_DEBUG_TUFTS toggle no longer exists. The scatter now runs
+      unconditionally via _scatterCurrentTufts() and uses a tile-seeded local
+      LCG instead of this.a, so it does not perturb gameplay randomness.
+    impact: "None. No debug flag consumes the shared Random for tufts anymore."
   - id: "overlay-renderer-stub"
     severity: "incomplete-port"
     status: "stub"
@@ -382,21 +492,15 @@ known_port_differences:
     impact: "Produces no drawing until implemented."
 
 debug_controls:
-  - flag: "__WM_DEBUG_RENDER"
-    default: true
-    effect: "Controls render instrumentation; false silences it."
-  - flag: "__WM_DEBUG_HUD"
-    default: true
-    effect: "Shows the paintScreen() status HUD; false hides it."
   - flag: "__WM_DEBUG_AUTOMOVE"
     default: false
     effect: "Forces bCam[0] during update()."
-  - flag: "__WM_DEBUG_TUFTS"
-    default: false
-    effect: "Forces and displays diagnostic tufts; consumes the gameplay Random."
   - flag: "__WM_DEBUG_DRAW"
     default: false
-    effect: "Sprite/atlas instrumentation located in src/resources/c.js."
+    effect: >
+      Sprite/atlas instrumentation located in src/resources/c.js. i.js itself
+      emits no render or HUD drawing and has a single console log, [mapa],
+      reported once per completed map-sprite step.
 
 maintenance_notes:
   - "Use i.java as a reference for intent, but verify each call against its signature and actual state."
