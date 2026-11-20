@@ -755,24 +755,26 @@ log_analysis_2026_11_18:
       change: "i.js:2358 uses Math.trunc((this.z - 12) / 24)."
       effect: "aProgress is now the byte value 0..30 that the bytecode expects."
     predicate_diagnostics:
+      status: "histórico; la instrumentación por método se eliminó después"
       cause: >
         _isDaytime/isDaytime are predicates: returning false at hour 0 is
         correct, but DIAG_META compared only the hour range and printed DIFIERE.
       change: >
-        diagnostico() accepts an optional `resultado`; predicates compute it
-        first and pass it in, so `esperado` is a predicate and the check
-        compares the returned boolean with `6<=i<=17`.
+        diagnostico() aceptaba un `resultado` opcional; los predicados lo
+        calculaban y lo pasaban para comparar el boolean devuelto con `6<=i<=17`.
       effect: "A legitimate night value now logs OK with resultado=no."
   still_open:
     wrong_b_overload:
-      site: "i.js:1361 -> this.canUseCurrentItemStub(b2, b3)"
+      status: "parcialmente resuelto: guardia de límites"
+      site: "updateEntities() -> this.canUseCurrentItemStub(b2, b3)"
       java: "i.java:1069 uses b(byte,byte), i.java:7895 = isInTileListC."
       note: >
-        canUseCurrentItemStub is the no-arg b() from i.java:1618 and was never
-        meant to receive coordinates; it returns true unconditionally. Replacing
-        it with isInTileListC would temporarily restore the freeze because the
-        C list is created with invalid JS (`new short[7]`, i.js:7602) and is
-        undefined at runtime. Left as-is deliberately; movement currently works.
+        canUseCurrentItemStub was the no-arg b() from i.java:1618 and returned
+        true unconditionally, so the player could step to (-1,-1) and then got
+        stuck. It now rejects coordinates outside mapW/mapH, and the edge branch
+        returns after the warning. The Java C list is still unavailable because
+        loadCollisionMap() is not called and uses invalid `new short[n]`, so
+        reserved-tile semantics remain unported.
     raf_violations:
       note: >
         "[Violation] requestAnimationFrame handler took <N>ms" comes from the
@@ -825,7 +827,7 @@ log_analysis_2026_11_18:
       - "Eliminado el bucle de dt en update(dt) que llamaba a advanceClock(1) cada 16/800 ms."
       - "advanceClock(1) se llama ahora en updateEntities() justo tras partyTickStub, en el punto de i.java:1178 j(1)."
       - "resetGameState() inicializa C=100 (i.java:7139) en vez de 0."
-      - "DIAG_META de update/resetGameState actualizada: reloj por paso y C=100."
+      - "Eliminada la instrumentación diagnostico()/DIAG_META de i.js (los demás módulos conservan sus logs)."
     diagnosis: >
       Con C=0 inicial, updateEntities() salía siempre por `C <= 0`: la partida
       arrancaba bloqueada. El reloj por temporizador acababa poniendo C=1 y
@@ -837,3 +839,35 @@ log_analysis_2026_11_18:
       - "CDP: entrada [i,0,0,0,0,0,100,false]; tras 6 s sin teclas idéntico."
       - "CDP: tecla 4 -> [i,0,-1,1,1,0,100,false]; tecla 2 solo gira, sin cambio de reloj."
       - "CDP: cero excepciones."
+
+  map_sprite_movement_log_2026_11_18:
+    source: "Reporte del usuario: remover logs e imprimir cambios de sprites del mapa al caminar"
+    changes:
+      - "Eliminados diagnostico(), DIAG_META, DIAG_VISTOS y _dbgStep de i.js."
+      - "resetGameState() inicializa _mapSpriteSnapshot (Set) y _mapSpritePending (null)."
+      - "updateEntities() marca cada paso completado con _markMapSpriteMove(fromX,fromY,toX,toY) en ambas ramas exitosas."
+      - "_drawTerrainColumnInner() captura los IDs de sprite dibujados para la casilla destino."
+      - "_renderAll() llama a _flushMapSpriteMove(): una línea por paso con +id/-id, casilla destino, tipo y casilla origen."
+      - "Corregido el avance fuera del mapa: borde ahora revisa x e y y hace return; canUseCurrentItemStub(x,y) rechaza coordenadas inválidas."
+    log_format: "[mapa] sprite del mapa se movió | cambiaron=+159,+174,-204 | casilla=(x,y) tipo=n | desde=(x0,y0)"
+    verification:
+      - "node --check src/game/i.js -> OK."
+      - "npm test -> 33/33."
+      - "CDP: h=7 desde (0,0), 6 intentos -> sigue (0,0), 0 logs [mapa], 0 excepciones."
+      - "CDP: h=4 + 1 intento -> (0,1), 1 log [mapa], 0 excepciones."
+
+  map_render_verification_2026_11_18:
+    source: "Reporte del usuario: 'dejamos el movimiento para después y verifiquemos el mapa'"
+    changes:
+      - "_getTerrainColor() compara this.i (hora del juego) en vez de la clase i."
+      - "tileFieldBits(x,y,boolean,boolean) restaura el overload de Java que devuelve color de terreno, no bits desplazados."
+    verification:
+      - "CDP: pantalla i con mapW=30, mapH=40, viewport 27x39, tileData=1200, H=76, skyBand=93."
+      - "CDP: histograma de tipos 0..7 completo; 149 casillas de agua (tipo 7)."
+      - "CDP: sprites de terreno 159/160/161/174/175/176/189/190/191/204/205/206 en x=0..176, y=101..163.5."
+      - "CDP: filas y=100..169 con 158..176 píxeles no negros; 0 MISSING ROWS/IMAGES dentro de la partida."
+      - "CDP: el MISSING ROWS id=89 del menú es la flecha del selector de idioma, no del mapa."
+      - "CDP: al muestrear (0,0), (23,31), (29,39), (0,39) y (29,0) el mapa se redibuja sin excepciones."
+      - "CDP: en casillas de agua (7,13) y (15,20) el cinturón queda parcialmente vacío; _drawEntityClip() consulta hDayBounds como si fueran offsets de casilla. Queda pendiente, no es bloqueante para el render inicial."
+      - "node --check src/game/i.js -> OK."
+      - "npm test -> 33/33."

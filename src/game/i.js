@@ -117,218 +117,6 @@ const hColorThresholds = [
   [2504023, 12636653, 12817489, 15770183, 10531279, 13737876, 14109207, 9183513]
 ];
 
-// ---- diagnóstico estructurado: un registro por método de i.js ----
-// Cada método emite una sola línea en consola la primera vez que se ejecuta.
-// El nombre es generalizado (en español) y se contrasta con el valor que fija
-// el bytecode comentado de i.java. No se dibuja nada en el canvas.
-const DIAG_VISTOS = new Set();
-
-function diagVal(v) {
-  if (v === null) return 'null';
-  if (v === undefined) return 'indefinido';
-  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(3);
-  if (typeof v === 'string') return v;
-  if (typeof v === 'boolean') return v ? 'sí' : 'no';
-  if (ArrayBuffer.isView(v) || Array.isArray(v)) {
-    const a = Array.from(v);
-    return '[' + a.slice(0, 8).map(diagVal).join(', ') + (a.length > 8 ? ', …' : '') + ']';
-  }
-  if (typeof v === 'object') {
-    const k = Object.keys(v);
-    return '{' + k.slice(0, 6).map((x) => x + '=' + diagVal(v[x])).join(', ') + '}';
-  }
-  return String(v);
-}
-function diagArgs(a) {
-  return Array.from(a || [], diagVal).join(', ') || '—';
-}
-function diagEstado(s) {
-  if (!s || typeof s !== 'object') return '';
-  const campos = ['i', 'H', 'skyBand', 'C', 'd', 'e', 'h', 'aProgress'];
-  return campos.filter((k) => s[k] !== undefined).map((k) => k + '=' + diagVal(s[k])).join(' ');
-}
-function diagNombre(name) {
-  const mapa = {
-    render: 'renderizando', draw: 'dibujando', paint: 'pintando', update: 'actualizando',
-    load: 'cargando', save: 'guardando', write: 'escribiendo', read: 'leyendo',
-    calc: 'calculando', handle: 'gestionando', init: 'inicializando', advance: 'avanzando',
-    tick: 'actualizando', step: 'avanzando', is: 'comprobando', can: 'comprobando',
-    get: 'obteniendo', set: 'estableciendo', clear: 'limpiando', add: 'añadiendo',
-    remove: 'quitando', find: 'buscando', play: 'reproduciendo', select: 'seleccionando',
-    scan: 'explorando', grant: 'otorgando', queue: 'encolando', mark: 'marcando',
-    reserve: 'reservando', store: 'guardando', reset: 'reiniciando', leave: 'saliendo',
-    show: 'mostrando', random: 'generando aleatorio', legacy: 'heredado',
-    unresolved: 'sin resolver', ambient: 'ambiental', tile: 'casilla',
-    terrain: 'terreno', entity: 'entidad', entities: 'entidades', minimap: 'minimapa',
-    inventory: 'inventario', water: 'agua', weather: 'clima', particle: 'partícula',
-    particles: 'partículas', portal: 'portal', dialog: 'diálogo', clock: 'reloj',
-    sprite: 'sprite', gradient: 'degradado', house: 'casas', cave: 'cueva',
-    marker: 'marcador', score: 'puntuación', collision: 'colisión', map: 'mapa',
-    field: 'campo', bits: 'bits', frame: 'fotograma', border: 'borde', bar: 'barra',
-    icon: 'icono', cursor: 'cursor', pickup: 'objeto recogible', item: 'objeto',
-    sound: 'sonido', anim: 'animación', overlay: 'capa superior', clip: 'recorte',
-    mask: 'máscara', region: 'región', cell: 'celda', column: 'columna',
-    background: 'fondo', intro: 'introducción', full: 'completo', inner: 'interno',
-    simple: 'simple', adjacent: 'adyacente', walkable: 'transitable',
-    blocked: 'bloqueado', between: 'entre', int: 'entero', byte: 'byte',
-    bool: 'booleano', node: 'nodo', seed: 'semilla', health: 'salud',
-    energy: 'energía', loot: 'botín', flag: 'bandera', time: 'tiempo',
-    hour: 'hora', facing: 'orientación', offset: 'desplazamiento'
-  };
-  const palabras = name.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(/\s+/);
-  const frase = palabras.map((p) => mapa[p] || p).filter(Boolean).join(' ');
-  return frase.charAt(0).toUpperCase() + frase.slice(1);
-}
-const diagM = (nombre, esperado, actual, comprobar) => ({ nombre, esperado, actual, comprobar });
-
-// Valores esperados tomados de los bytecode comentados (i.java) y de las
-// constantes que el propio port documenta (H=76, J=93, sprite base 269, …).
-const DIAG_META = {
-  constructor: diagM('Inicializando estado del juego', 'H=76, skyBand=93, viewport=176x208',
-    (s) => 'H=' + diagVal(s.H) + ', skyBand=' + diagVal(s.skyBand),
-    (s) => s.H === 76 && s.skyBand === 93),
-  resetGameState: diagM('Reiniciando estado del juego', 'H=76, skyBand=93, C=100, clip=0,0,176,208',
-    (s) => 'H=' + diagVal(s.H) + ', skyBand=' + diagVal(s.skyBand) + ', C=' + diagVal(s.C),
-    (s) => s.H === 76 && s.skyBand === 93 && s.C === 100),
-  paintScreen: diagM('Pintando pantalla completa', 'clip=0,0,176,208',
-    () => 'clip=0,0,176,208', () => true),
-  update: diagM('Actualizando fotograma', 'sin reloj por temporizador; avanza solo en updateEntities',
-    (s) => 'C=' + diagVal(s.C) + ', reloj=por paso', (s) => s.C > 0),
-  screenEntered: diagM('Entrando en la pantalla de juego', 'estado inicial conservado', diagEstado),
-  keyPressed: diagM('Procesando tecla pulsada', 'código mapeado a bCam[0..8]',
-    (s, a) => 'código=' + diagVal(a[0]) + ' ' + diagEstado(s)),
-  advanceClock: diagM('Avanzando reloj del juego', 'aProgress entero 0..30; al llegar a 30 reinicia i=0',
-    (s) => 'aProgress=' + diagVal(s.aProgress) + ', i=' + diagVal(s.i) + ', C=' + diagVal(s.C),
-    (s) => Number.isInteger(s.aProgress) && s.aProgress >= 0 && s.aProgress <= 30),
-  loadTileData: diagM('Cargando datos de casillas', 'mapW, mapH, viewport desde el recurso',
-    (s) => 'mapW=' + diagVal(s.mapW) + ', mapH=' + diagVal(s.mapH) +
-      ', viewport=' + diagVal(s.viewportW) + 'x' + diagVal(s.viewportH)),
-  loadWorldData: diagM('Cargando mundo', 'mapa, entidades, nodos y animaciones coherentes',
-    (s) => 'mapa=' + diagVal(s.mapW) + 'x' + diagVal(s.mapH) + ' ' + diagEstado(s)),
-  loadCollisionMap: diagM('Cargando mapa de colisiones', 'class=0 o class=1 por casilla',
-    (s) => 'longitud=' + diagVal(s.tileData && s.tileData.length)),
-  initParticlePools: diagM('Inicializando reservas de partículas', 'pools vacíos',
-    (s) => 'partículas=' + diagVal(s.particlePool && s.particlePool.length)),
-  _paintEntry: diagM('Preparando lienzo de pintura', 'clip=0,0,176,208',
-    () => 'clip=0,0,176,208', () => true),
-  _renderAll: diagM('Renderizando escena completa', 'terreno + capas + entidades + minimapa',
-    (s) => diagEstado(s)),
-  _renderTerrain: diagM('Renderizando cielo y terreno', 'H=76, banda J=93, línea de tierra=169',
-    (s) => 'H=' + diagVal(s.H) + ', J=' + diagVal(s.skyBand) + ', tierra=' + diagVal(s.H + s.skyBand),
-    (s) => s.H === 76 && s.skyBand === 93 && s.H + s.skyBand === 169),
-  _renderTerrainInner: diagM('Renderizando césped y franjas de cielo',
-    'sprite base=269; franjas H*70/100 y H..169',
-    (s) => 'H=' + diagVal(s.H) + ', i=' + diagVal(s.i) + ', sprite=269',
-    (s) => s.H === 76),
-  _fillTerrainBg: diagM('Rellenando fondo de césped', 'sprite=269, y=42..126',
-    (s, a) => 'sprite=269, clip=' + diagArgs(a), () => true),
-  _drawTileGradient: diagM('Dibujando degradado de casilla', 'color inicial y final interpolados',
-    (s, a) => 'args=' + diagArgs(a)),
-  renderRegion: diagM('Renderizando región visible', 'región dentro de 176x169',
-    (s, a) => 'args=' + diagArgs(a) + ' ' + diagEstado(s)),
-  _renderEntities: diagM('Renderizando entidades', 'pasos 0, 1 y 2',
-    (s, a) => 'paso=' + diagVal(a[0]), (s, a) => a[0] === 0 || a[0] === 1 || a[0] === 2),
-  _renderEntitiesInner: diagM('Renderizando columnas de entidades', '5 columnas A + 3 columnas B',
-    (s, a) => 'paso=' + diagVal(a[0]) + ', pos=(' + diagVal(s.d) + ',' + diagVal(s.e) + ')'),
-  _drawEntityClip: diagM('Recortando entidad en el horizonte', 'H+J=169',
-    (s) => 'H=' + diagVal(s.H) + ', J=' + diagVal(s.skyBand) + ', límite=' + diagVal(s.H + s.skyBand),
-    (s) => s.H + s.skyBand === 169),
-  _drawEntityMask: diagM('Aplicando máscara a entidad', 'sprite y animación válidos', (s, a) => 'args=' + diagArgs(a)),
-  _drawEntityObject: diagM('Dibujando objeto de entidad', 'tipos 66, 20 o 7',
-    (s, a) => 'args=' + diagArgs(a)),
-  _drawEntityOverlay: diagM('Dibujando capa superior de entidad', 'capa dentro del recorte', (s, a) => 'args=' + diagArgs(a)),
-  _playEntityAnim: diagM('Reproduciendo animación de entidad', 'fotograma dentro de la tabla', (s, a) => 'args=' + diagArgs(a)),
-  _drawTerrainColumn: diagM('Dibujando columna de terreno', 'columna dentro de 176x169', (s, a) => 'args=' + diagArgs(a)),
-  _drawTerrainColumnInner: diagM('Dibujando interior de columna de terreno', 'prefab y sprites válidos', (s, a) => 'args=' + diagArgs(a)),
-  renderTileColumn: diagM('Renderizando columna de casillas', 'colores y sprites válidos', (s, a) => 'args=' + diagArgs(a)),
-  _waterVariantAt: diagM('Seleccionando variante de agua', 'variante 0..3',
-    (s, a) => 'args=' + diagArgs(a)),
-  _renderMinimap: diagM('Renderizando minimapa', 'mapa completo cableado', (s) => diagEstado(s)),
-  _renderMinimapInner: diagM('Renderizando interior del minimapa', 'casillas visitadas marcadas', (s) => diagEstado(s)),
-  _updateMinimapIcons: diagM('Actualizando iconos del minimapa', 'iconos dentro del minimapa', (s, a) => 'args=' + diagArgs(a)),
-  _renderUIBar: diagM('Renderizando barra de interfaz', 'barra visible', diagEstado),
-  _renderActionIcons: diagM('Renderizando iconos de acción', 'iconos según herramienta', (s) => 'herramienta=' + diagVal(s.selectedItem)),
-  _renderInventory: diagM('Renderizando inventario', 'objetos dentro de ranuras', (s) => 'objetos=' + diagVal(s.inventory && s.inventory.length)),
-  _renderWaterAnim: diagM('Renderizando animación de agua', 'fotograma 0..3', (s) => 'i=' + diagVal(s.i)),
-  _renderWeatherFx: diagM('Renderizando efectos climáticos', 'partículas activas', (s) => 'i=' + diagVal(s.i)),
-  renderWeatherFx: diagM('Renderizando efectos climáticos', 'partículas activas', (s, a) => 'args=' + diagArgs(a)),
-  renderMarkerOverlay: diagM('Renderizando marcadores', 'marcadores dentro del mapa', (s) => diagEstado(s)),
-  renderCaveInterior: diagM('Renderizando interior de cueva', 'suelo y paredes válidos', (s) => diagEstado(s)),
-  drawHouseLayer: diagM('Dibujando capa de casas', 'triplas (dx, dy, sprite) del prefab',
-    (s, a) => 'prefab=' + diagVal(a[2]) + ', args=' + diagArgs(a)),
-  _drawUIFrame: diagM('Dibujando marco de interfaz', 'marco dentro de 176x208', (s, a) => 'args=' + diagArgs(a)),
-  renderFrameBorder: diagM('Renderizando borde del fotograma', 'borde dentro de 176x208', (s, a) => 'args=' + diagArgs(a)),
-  advanceFrameCounter: diagM('Avanzando contador de fotogramas', 'contador incremental', (s) => 'i=' + diagVal(s.i)),
-  calcScore: diagM('Calculando puntuación', 'puntuación entera no negativa', (s) => 'puntuación=' + diagVal(s.score)),
-  writeSaveRecord: diagM('Guardando registro de partida', 'campos serializados en big-endian', (s) => diagEstado(s)),
-  showMessageDialog: diagM('Mostrando diálogo de mensaje', 'd[t]=p1, e[t]=p2, a[t]=textos',
-    (s, a) => 'p1=' + diagVal(a[0]) + ', p2=' + diagVal(a[2]) + ', textos=' + diagVal(a[1])),
-  legacyAdvanceDialogTimer: diagM('Avanzando temporizador de diálogo', 't>0 => t--',
-    (s) => 't=' + diagVal(s.dialogTimer), (s) => s.dialogTimer >= 0),
-  legacyPortalRegistryUpdate: diagM('Registrando portal', 'switch 0/1/2',
-    (s, a) => 'modo=' + diagVal(a[0]), (s, a) => a[0] === 0 || a[0] === 1 || a[0] === 2),
-  tickPortalTimers: diagM('Actualizando temporizadores de portal', 'D[n]>0 => D[n]--',
-    (s) => 'temporizadores=' + diagVal(s.fxDuration || s.DArr)),
-  unresolvedB5142: diagM('Cargando datos iniciales', 'O=0 antes de leer la cadena',
-    (s) => 'O=' + diagVal(s.saveOffset || s.O), (s) => (s.saveOffset || s.O || 0) === 0),
-  unresolvedC5986: diagM('Reiniciando indicadores', 'banderas y contadores a 0/falso',
-    (s) => 'C=' + diagVal(s.C) + ', i=' + diagVal(s.i)),
-  randomBetween: diagM('Generando número entre límites', 'lo<=resultado<=hi',
-    (s, a) => 'rango=' + diagVal(a[0]) + '..' + diagVal(a[1])),
-  randomInt: diagM('Generando entero aleatorio', 'lo<=resultado<=hi', (s, a) => 'rango=' + diagVal(a[0]) + '..' + diagVal(a[1])),
-  readTileBits: diagM('Leyendo bits de casilla', 'máscara y desplazamiento válidos', (s, a) => 'args=' + diagArgs(a)),
-  tileFieldBits: diagM('Leyendo campo de bits de casilla', 'máscara y desplazamiento válidos', (s, a) => 'args=' + diagArgs(a)),
-  isWalkable: diagM('Comprobando casilla transitable', 'j=6 con k=2/4 => no transitable',
-    (s, a) => 'pos=(' + diagVal(a[0]) + ',' + diagVal(a[1]) + ')', (s, a) => a[0] >= 0 && a[1] >= 0),
-  handleTileField: diagM('Gestionando campo de casillas', 'casilla dentro del mapa', (s, a) => 'pos=(' + diagVal(a[0]) + ',' + diagVal(a[1]) + ')'),
-  placeEntity: diagM('Colocando entidad', '0<=x<mapW, 0<=y<mapH',
-    (s, a) => 'entidad=' + diagVal(a[0]) + ', mapa=' + diagVal(s.mapW) + 'x' + diagVal(s.mapH)),
-  updateEntities: diagM('Actualizando entidades', 'posición y orientación válidas', diagEstado),
-  updateEntityTimers: diagM('Actualizando temporizadores de entidades', 'temporizadores >=0', (s, a) => 'entidad=' + diagVal(a[0])),
-  updatePlacementState: diagM('Actualizando estado de colocación', 'objeto seleccionado válido', (s) => 'objeto=' + diagVal(s.selectedItem)),
-  updateAmbientParticles: diagM('Actualizando partículas ambientales', 'partículas dentro del viewport', (s) => 'i=' + diagVal(s.i)),
-  updatePickups: diagM('Actualizando objetos recogibles', 'objetos dentro del mapa', (s) => diagEstado(s)),
-  grantRandomLoot: diagM('Otorgando botín aleatorio', 'objeto válido', (s, a) => 'args=' + diagArgs(a)),
-  addItemToInventory: diagM('Añadiendo objeto al inventario', 'ranura libre', (s, a) => 'args=' + diagArgs(a)),
-  removeItemFromInventory: diagM('Quitando objeto del inventario', 'ranura ocupada', (s, a) => 'args=' + diagArgs(a)),
-  registerPortalEffect: diagM('Registrando efecto de portal', 'índice y temporizador válidos', (s, a) => 'args=' + diagArgs(a)),
-  tickPortalEffects: diagM('Actualizando efectos de portal', 'temporizadores decrementados', (s) => 'temporizadores=' + diagVal(s.fxDuration || s.DArr)),
-  setFlagAn: diagM('Activando bandera de diálogo', 'bandera=sí', () => 'sí', () => true),
-  clearFlagAn: diagM('Desactivando bandera de diálogo', 'bandera=no', () => 'no', () => true),
-  _isDaytime: diagM('Comprobando si es de día', 'resultado=sí solo si 6<=i<=17',
-    (s) => 'i=' + diagVal(s.i), (s, a, r) => r === (s.i >= 6 && s.i <= 17)),
-  isDaytime: diagM('Comprobando si es de día', 'resultado=sí solo si 6<=i<=17',
-    (s) => 'i=' + diagVal(s.i), (s, a, r) => r === (s.i >= 6 && s.i <= 17)),
-  clampByte: diagM('Limitando valor a byte', '0<=resultado<=255', (s, a) => 'entrada=' + diagVal(a[0])),
-  facingFromTileBits: diagM('Obteniendo orientación desde bits', 'orientación 0..7', (s, a) => 'args=' + diagArgs(a)),
-  renderSpriteOffset: diagM('Calculando desplazamiento de sprite', 'desplazamiento dentro de tabla', (s, a) => 'args=' + diagArgs(a)),
-  _getTerrainColor: diagM('Obteniendo color del terreno', 'color de la tabla de umbrales', (s, a) => 'args=' + diagArgs(a)),
-  _terrainTypeColor: diagM('Obteniendo color por tipo de terreno', 'color de la tabla de umbrales', (s, a) => 'tipo=' + diagVal(a[0])),
-  _getTerrainColorAt: diagM('Obteniendo color del terreno en casilla', 'color válido', (s, a) => 'args=' + diagArgs(a)),
-  _getTerrainColorSimple: diagM('Obteniendo color simple del terreno', 'color válido', (s, a) => 'args=' + diagArgs(a))
-};
-
-function diagnostico(nombre, contexto, args, resultado) {
-  if (DIAG_VISTOS.has(nombre)) return;
-  DIAG_VISTOS.add(nombre);
-  const meta = DIAG_META[nombre];
-  const etiqueta = meta ? meta.nombre : diagNombre(nombre);
-  const esperado = meta && meta.esperado !== undefined ? meta.esperado : 'valor definido en i.java';
-  const base = meta && meta.actual ? meta.actual(contexto, args) :
-    'args=' + diagArgs(args) + (diagEstado(contexto) ? ' | ' + diagEstado(contexto) : '');
-  const actual = resultado === undefined ? base : base + ' | resultado=' + diagVal(resultado);
-  let estado = 'SIN REFERENCIA';
-  if (meta && meta.comprobar) {
-    let ok = false;
-    try { ok = !!meta.comprobar(contexto, args, resultado); } catch (_e) { ok = false; }
-    estado = ok ? 'OK' : 'DIFIERE';
-  }
-  const sufijo = diagEstado(contexto) ? ' [' + diagEstado(contexto) + ']' : '';
-  console.log(
-    '%c[i.js] ' + etiqueta + '%c esperado=' + esperado + ' | actual=' + actual + ' | ' + estado + ' (' + nombre + ')' + sufijo,
-    'color:#7fd1ff;font-weight:bold', 'color:#d0d0d0'
-  );
-}
 
 export class i extends Screen {
   u = new Int16Array(130);
@@ -612,8 +400,6 @@ export class i extends Screen {
   constructor() {
     super();
     this.resetGameState();
-    // El diagnóstico se emite al final: H y skyBand se asignan en resetGameState.
-    diagnostico('constructor', this, arguments);
   }
 
   resetGameState() {
@@ -713,12 +499,12 @@ export class i extends Screen {
     this.tableA = Array.from({ length: 9 }, () => []);
     this.arrD = new Int32Array(9);
     this.arrE = new Int32Array(9);
-    // Igual que en constructor: solo se registra una vez que H/skyBand existen.
-    diagnostico('resetGameState', this, arguments);
+    // Comparación de sprites de terreno (árboles, maleza, etc.) entre pasos.
+    this._mapSpriteSnapshot = new Set();
+    this._mapSpritePending = null;
   }
 
   paintScreen(g) {
-    diagnostico('paintScreen', this, arguments);
     try {
       g.setClip(0, 0, 176, 208);
       g.setColor(0x000000);
@@ -735,7 +521,6 @@ export class i extends Screen {
   }
 
   update(dt) {
-    diagnostico('update', this, arguments);
     this._frameCount = (this._frameCount || 0) + 1;
     try {
       i.updateAmbientParticles.call(this, dt);
@@ -762,24 +547,20 @@ export class i extends Screen {
   }
 
   screenEntered() {
-    diagnostico('screenEntered', this, arguments);
   }
 
 isDaytime() {
     const resultado = this.i >= 6 && this.i <= 17;
-    diagnostico('isDaytime', this, arguments, resultado); /* aCheck */
     return resultado;
   }
 
   randomInt(paramInt1, paramInt2, paramRandom) {
-    diagnostico('randomInt', this, arguments); /* aRandom */
     let max = paramInt2;
     if (max - paramInt1 + 1 === 0) max++;
     return ((Math.floor(Math.random() * 0x40000000)) % (max - paramInt1 + 1)) + paramInt1;
   }
 
   placeEntity(paramInt) {
-    diagnostico('placeEntity', this, arguments);
 // Java i.java:2879 r(int) — drops entity `paramInt` on a random map tile that
 // is not occupied and not adjacent to the player. Same body as
 // randomizeEntityPosition (i.js:2122) but writing the non-colliding
@@ -804,17 +585,14 @@ isDaytime() {
   }
   
   loadTileData() {
-    const diag = () => diagnostico('loadTileData', this, arguments);
     try {
       const data = cRes.getResource(63);
-      if (!data) { diag(); return; }
+      if (!data) return;
       let off = 0;
       this.mapW = data[off++] & 0xFF;
       this.mapH = data[off++] & 0xFF;
       this.viewportW = data[off++] & 0xFF;
       this.viewportH = data[off++] & 0xFF;
-      // El registro se emite aquí para que mapW/mapH ya sean los del recurso.
-      diag();
       const tileCount = this.mapW * this.mapH;
       this.tileData = new Int16Array(tileCount);
       this.tileFlags = new Uint8Array(tileCount);
@@ -953,13 +731,10 @@ isDaytime() {
         } 
       }
       this.ckConsumed = off;
-    } catch (_e) {
-      diag();
-    }
+    } catch (_e) {}
   }
 
   loadWorldData() {
-    diagnostico('loadWorldData', this, arguments);
 // [dead stub] No-op. The Java originally read resource 64 here, but assets/h
 // only defines ids 0..63, so cRes.getResource(64) is always null and the old
 // body could only ever hit the `if (!data) return;` bail. The real world state
@@ -969,12 +744,10 @@ isDaytime() {
   }
 
   playClickSound(isResume) {
-    diagnostico('playClickSound', this, arguments);
     try { n.playSound(50, -1); } catch (_e) {}
   }
 
   keyPressed(paramInt) {
-    diagnostico('keyPressed', this, arguments);
     this._lastKey = paramInt;
     this._lastKeyAt = (globalThis.performance || Date).now();
     for (let i = 0; i < 9; i++) {
@@ -1021,7 +794,6 @@ isDaytime() {
   }
 
   advanceTimers(paramInt) {
-    diagnostico('advanceTimers', this, arguments);
     if (this.an) return;
     // i.java asigna `z = false` a un campo byte: equivale a 0, no a booleano.
     this.z = 0;
@@ -1130,7 +902,6 @@ isDaytime() {
   }
 
   static itemSpriteBase(paramInt) {
-    diagnostico('itemSpriteBase', this, arguments); /* aInt */
     switch (paramInt) {
       case 6: return 42;
       case 15: return 54;
@@ -1160,7 +931,6 @@ isDaytime() {
   }
 
   static handleEntityPrompt(paramBoolean, paramGraphics) {
-    diagnostico('handleEntityPrompt', this, arguments); /* aBooleanGraphics */
     if (this.m === -1) return;
     if (!this.m && this.fFlag === 0) {
       if (paramBoolean) this.showMessageDialog(60, null, -1);
@@ -1216,7 +986,6 @@ isDaytime() {
   }
   
   static updatePlacementState(paramInt) {
-    diagnostico('updatePlacementState', this, arguments); /* aStep */
     if (this.oVal !== 0 && this.D > 0 && this.D < 600) {
       this.clearEntityViews();
       this.updatePickups();
@@ -1225,7 +994,6 @@ isDaytime() {
   }
 
   static updateAmbientParticles(paramInt) {
-    diagnostico('updateAmbientParticles', this, arguments); /* eUpdate */
     if (!this.isDaytime()) {
       if (this.rVal === -1) {
         this.sVal += paramInt;
@@ -1257,7 +1025,6 @@ isDaytime() {
   }
 
   static handleTileAction() {
-    diagnostico('handleTileAction', this, arguments); /* iCheck */
     if (this.l !== null) {
       let j = this.readTileBits(this.d, this.e, 0, 7);
       switch (this.h[j]) {
@@ -1303,9 +1070,7 @@ isDaytime() {
   }
   
   static updateEntities() {
-    diagnostico('updateEntities', this, arguments); /* jStep */
     if (this.F !== 0 || this.t !== null || this.C <= 0 || this.y !== null || this.x !== null || this.m === 5 || (this.m === 6 && this.l === null) || this.m === 7 || this.m === 8) {
-      this._dbgStep = 'gate F' + this.F + '/t' + (this.t !== null) + '/C' + this.C + '/y' + (this.y !== null) + '/x' + (this.x !== null) + '/m' + this.m + '/l' + (this.l !== null);
       return;
     }
     if (this.D <= 0) {
@@ -1366,16 +1131,19 @@ isDaytime() {
           this.calcScore();
           this.hero.a();
           this.r = 7;
-        } else if (b3 < 0 || b3 >= this.mapH) {
-          this._dbgStep = 'edge(' + b2 + ',' + b3 + ',H=' + this.mapH + ',h=' + this.h + ')';
+        } else if (b2 < 0 || b2 >= this.mapW || b3 < 0 || b3 >= this.mapH) {
           if (this.C !== 0) {
             this.showMessageDialog(211, null, -1);
           } else {
             this.showMessageDialog(165, null, 32);
           }
+          // Sin este return el paso seguía y el jugador quedaba fuera del mapa
+          // (p.ej. (-1,-1)); desde ahí ya no podía volver y parecía congelado.
+          return;
         }
         if ((b2 !== this.d || b3 !== this.e) && this.canUseCurrentItemStub(b2, b3)) {
-          this._dbgStep = 'move(' + b2 + ',' + b3 + ',h=' + this.h + ')';
+          const fromX = this.d;
+          const fromY = this.e;
           this.hero.d();
           if (this.A !== 0 && this.readTileBits(b2, b3, 0, 7) !== 7) {
             for (let i = 0; i < this.aCam.g; i++) {
@@ -1394,6 +1162,7 @@ isDaytime() {
               this.g = this.e;
               this.d = b2;
               this.e = b3;
+              i._markMapSpriteMove.call(this, fromX, fromY, b2, b3);
               this.updateWeatherParticles(1);
               this.s[this.S] = this.d;
               this.t[this.S] = this.e;
@@ -1412,6 +1181,7 @@ isDaytime() {
             this.g = this.e;
             this.d = b2;
             this.e = b3;
+            i._markMapSpriteMove.call(this, fromX, fromY, b2, b3);
             this.updateWeatherParticles(1);
             if (this.J === 0 && this.m === -1) {
               this.J = 1;
@@ -1481,7 +1251,6 @@ isDaytime() {
             return;
           }
         } else if (b1 !== this.h) {
-          this._dbgStep = 'turn->' + b1 + '(h' + this.h + ')';
           this.hero.d();
           if (this.A !== 0 && this.readTileBits(b2, b3, 0, 7) !== 7) {
             for (let i = 0; i < this.aCam.g; i++) {
@@ -1551,8 +1320,41 @@ isDaytime() {
     }
   }
 
+  // Un paso completado abre una ventana de captura: los sprites de terreno se
+  // generan durante el render, no en updateEntities(), así que se comparan al
+  // cerrar _renderAll() y se emite un único log por movimiento.
+  static _markMapSpriteMove(fromX, fromY, toX, toY) {
+    this._mapSpritePending = {
+      fromX, fromY, toX, toY,
+      tileType: i.readTileBits.call(this, toX, toY, 0, 7),
+      sprites: new Set()
+    };
+  }
+
+  static _flushMapSpriteMove() {
+    const pending = this._mapSpritePending;
+    if (!pending) return;
+    if (this.d !== pending.toX || this.e !== pending.toY) {
+      this._mapSpritePending = null;
+      return;
+    }
+    const antes = this._mapSpriteSnapshot || new Set();
+    const ahora = pending.sprites;
+    const orden = (a, b) => a - b;
+    const entraron = [...ahora].filter((id) => !antes.has(id)).sort(orden);
+    const salieron = [...antes].filter((id) => !ahora.has(id)).sort(orden);
+    const cambiaron = [
+      ...entraron.map((id) => '+' + id),
+      ...salieron.map((id) => '-' + id)
+    ].join(',') || 'ninguno';
+    console.log('[mapa] sprite del mapa se movió | cambiaron=' + cambiaron +
+      ' | casilla=(' + pending.toX + ',' + pending.toY + ') tipo=' + pending.tileType +
+      ' | desde=(' + pending.fromX + ',' + pending.fromY + ')');
+    this._mapSpriteSnapshot = new Set(ahora);
+    this._mapSpritePending = null;
+  }
+
   static itemFrameId(paramInt) {
-    diagnostico('itemFrameId', this, arguments); /* bValue */
     switch (paramInt) {
       case 201: return 44;
       case 104: return 34;
@@ -1567,7 +1369,6 @@ isDaytime() {
   }
 
   static calcItemEffect(paramInt) {
-    diagnostico('calcItemEffect', this, arguments); /* cValue */
     let j;
     let bool;
     let b = 1;
@@ -1595,13 +1396,15 @@ isDaytime() {
     }
   }
 
-  static canUseCurrentItemStub() {
-    diagnostico('canUseCurrentItemStub', this, arguments);
+  static canUseCurrentItemStub(x, y) {
+    // Java b(byte,byte) valida la casilla destino. loadCollisionMap() no está
+    // activa en el port, así que la lista C no existe; al menos rechazamos
+    // coordenadas fuera del mapa para no repetir el atrapamiento en (-1,-1).
+    if (x < 0 || y < 0 || x >= this.mapW || y >= this.mapH) return false;
     return true;
   }
 
   static passableForItem(paramInt) {
-    diagnostico('passableForItem', this, arguments);
     let j;
     let bool;
     let b = 1;
@@ -1645,7 +1448,6 @@ isDaytime() {
   }
 
   static canActivateItem() {
-    diagnostico('canActivateItem', this, arguments); /* bAction */
     let b = this.A[this.o * 2 + 1];
     let j = this.o * 2;
     let k = this.readTileBits(this.d, this.e, 13, 57344);
@@ -1708,7 +1510,6 @@ isDaytime() {
   }
 
   static calcAmbientByHour() {
-    diagnostico('calcAmbientByHour', this, arguments);
     let j = 0;
     if (this.i < 6) {
       j = 6 - this.i;
@@ -1753,7 +1554,6 @@ isDaytime() {
   }
 
   static updateEntityTimers(paramInt) {
-    diagnostico('updateEntityTimers', this, arguments); /* fUpdate */
     for (let b = 0; b < this.r.length; b++) {
       if ((this.r[b] === 1 || this.r[b] === 3) && this.u[b] === 1 && (this.s[b] !== this.y || this.t[b] !== this.z)) {
         this.v[b] = (this.v[b] - paramInt);
@@ -1763,7 +1563,6 @@ isDaytime() {
   }
 
   static harvestTile(paramByte1, paramByte2) {
-    diagnostico('harvestTile', this, arguments); /* aByte */
     if (this.C !== 0 && !this.isDaytime()) return;
     let j = this.readTileBits(paramByte1, paramByte2, 0, 7);
     let k = 0;
@@ -1778,13 +1577,11 @@ isDaytime() {
   }
 
   static gainEnergy(paramInt) {
-    diagnostico('gainEnergy', this, arguments);
     this.C += paramInt;
     if (this.C > 100) this.C = 100;
   }
 
   static readTileBits(paramByte1, paramByte2, paramInt1, paramInt2) {
-    diagnostico('readTileBits', this, arguments); /* aTile */
     if (!this.tileData) return 0;
     const x = paramByte1;
     const y = paramByte2;
@@ -1793,46 +1590,39 @@ isDaytime() {
   }
 
   static legacyPaintNoop() {
-    diagnostico('legacyPaintNoop', this, arguments);}
+  }
 
   static legacySubNoop(paramBoolean) {
-    diagnostico('legacySubNoop', this, arguments);}
+  }
 
   static legacyPaintDelegatingNoop(paramBoolean, paramGraphics) {
-    diagnostico('legacyPaintDelegatingNoop', this, arguments);
     this.legacyPaintNoop(paramGraphics);
   }
 
   static legacySetEntityNoop(paramInt, paramByte1, paramByte2) {
-    diagnostico('legacySetEntityNoop', this, arguments);}
+  }
 
   static legacyTilePassableNoop(paramByte1, paramByte2) {
-    diagnostico('legacyTilePassableNoop', this, arguments);
     return true;
   }
 
   static legacyEntityLookupB(paramByte1, paramByte2, paramInt1, paramInt2) {
-    diagnostico('legacyEntityLookupB', this, arguments);
     return false;
   }
 
   static legacyEntityLookupA(paramByte1, paramByte2, paramInt1, paramInt2) {
-    diagnostico('legacyEntityLookupA', this, arguments);
     return false;
   }
 
   static legacyEntityLookupBStrict(paramByte1, paramByte2, paramInt1, paramInt2) {
-    diagnostico('legacyEntityLookupBStrict', this, arguments);
     return false;
   }
 
   static legacyEntityLookupAAny(paramByte1, paramByte2, paramInt) {
-    diagnostico('legacyEntityLookupAAny', this, arguments);
     return false;
   }
 
   static isEntityAtTile(paramByte1, paramByte2, paramInt) {
-    diagnostico('isEntityAtTile', this, arguments); /* bTileMatch */
     for (let b = 0; b < this.w.length; b++) {
       if (this.x[b] === paramByte1 && this.y[b] === paramByte2 && this.w[b] === paramInt && this.z[b] !== 2) return true;
     }
@@ -1840,7 +1630,6 @@ isDaytime() {
   }
 
   static findNodeAt(paramByte1, paramByte2, paramInt1, paramInt2) {
-    diagnostico('findNodeAt', this, arguments); /* b(byte,byte,int,int) */
     if (!this.nodeLink) return false;
     for (let i = 0; i < this.nodeLink.length; i++) {
       if (this.nodeX[i] === paramByte1 && this.nodeY[i] === paramByte2 && this.nodeKind[i] === paramInt1 && this.nodeLink[i] === paramInt2) {
@@ -1852,7 +1641,6 @@ isDaytime() {
   }
 
   static registerPortalEffect(paramInt1, paramInt2) {
-    diagnostico('registerPortalEffect', this, arguments); /* d(int,int) */
     if (paramInt2 === 0) {
       for (let i = 0; i < this.fxN.length; i++) {
         if (this.fxN[i] === paramInt1) { this.fxD[i] = 2; return true; }
@@ -1872,7 +1660,6 @@ isDaytime() {
   }
 
   static tickPortalEffects() {
-    diagnostico('tickPortalEffects', this, arguments); /* t() */
     for (let i = 0; i < this.fxD.length; i++) {
       if (this.fxD[i] > 0) {
         this.fxD[i] = (this.fxD[i] - 1);
@@ -1891,7 +1678,6 @@ isDaytime() {
   }
 
   static maybeShowTileHint() {
-    diagnostico('maybeShowTileHint', this, arguments);
     let j = this.tileFieldBits(this.d, this.e, 0, 7);
     if (this.l === null && (j === 1 || j === 2 || j === 4 || j === 5) && this.randomBetween(0, 100, this.a) <= 10 && this.C === 0) {
       let arrayOfString = this.addItemToInventory(12, 1);
@@ -1900,7 +1686,6 @@ isDaytime() {
   }
 
   static advanceCursor(paramInt) {
-    diagnostico('advanceCursor', this, arguments);
     this.o = (this.o + paramInt);
     if (this.o > this.p) {
       this.o = 0;
@@ -1910,7 +1695,6 @@ isDaytime() {
   }
 
   static resetDialogScroll() {
-    diagnostico('resetDialogScroll', this, arguments);
     this.j = true;
     this.o = 0;
     if ((this.o < (this.v / 2) || this.o === this.p) && this.B !== 5) {
@@ -1925,7 +1709,6 @@ isDaytime() {
   }
 
   static selectItemSlot(paramInt) {
-    diagnostico('selectItemSlot', this, arguments); /* i */
     for (let b = 0; b < this.A.length; b += 2) {
       if (this.A[b] === paramInt) {
         this.o = (b / 2);
@@ -1935,7 +1718,6 @@ isDaytime() {
   }
 
   static scanEntityInteraction() {
-    diagnostico('scanEntityInteraction', this, arguments);
     return; // [port-gap] entity-interaction scan disabled (s/t/r/u/v/B arrays collide with scalars); enable when entity system is ported
     this.l = false;
     this.B = -1;
@@ -2106,7 +1888,6 @@ isDaytime() {
   }
   
   static grantRandomLoot(paramInt1, paramInt2, paramInt3) {
-    diagnostico('grantRandomLoot', this, arguments); /* aAction */
     if (((this.B === 5 || this.B === 4) && this.l !== null && this.C !== 0) || this.B === -1) return;
     if (this.B === 5 && this.l !== null) {
       if (this.A[paramInt2] !== 19) {
@@ -2158,7 +1939,6 @@ isDaytime() {
   }
   
   static clearPickupMarks() {
-    diagnostico('clearPickupMarks', this, arguments);
     this.m = false;
     let b;
     for (b = 0; b < this.k; b++) {
@@ -2171,7 +1951,6 @@ isDaytime() {
   }
   
   static isConsumablesFull() {
-    diagnostico('isConsumablesFull', this, arguments);
     let b1 = 0;
     let b2;
     for (b2 = 0; b2 < this.k; b2++) {
@@ -2188,7 +1967,6 @@ isDaytime() {
   }
   
   static playPickupSound() {
-    diagnostico('playPickupSound', this, arguments); /* pStep */
     if (typeof this.v !== 'function') return;
     if (this.isDaytime()) {
       this.playSound(59);
@@ -2198,7 +1976,6 @@ isDaytime() {
   }
   
   static updatePickups() {
-    diagnostico('updatePickups', this, arguments);
     if (this.m !== 6) this.playPickupSound();
     if (this.j !== -1) {
       let arrayOfString;
@@ -2255,13 +2032,11 @@ isDaytime() {
   }
   
   static itemMessageStub(paramInt, paramByte1, paramByte2) {
-    diagnostico('itemMessageStub', this, arguments);
     // Bytecode decompiled - method stub
     return null;
   }
   
   static addItemToInventory(paramInt1, paramInt2) {
-    diagnostico('addItemToInventory', this, arguments);
     let arrayOfString = new Array(1);
     let b1 = 0;
     this.v = false;
@@ -2345,7 +2120,6 @@ isDaytime() {
   }
   
   static removeItemFromInventory(paramInt1, paramInt2) {
-    diagnostico('removeItemFromInventory', this, arguments);
     this.A[paramInt1 + 1] = (this.A[paramInt1 + 1] - paramInt2);
     if (this.A[paramInt1 + 1] <= 0 && this.A[paramInt1] !== 22 && this.A[paramInt1] !== 2) {
       for (let j = paramInt1 + 2; j < this.A.length; j++) this.A[j - 2] = this.A[j];
@@ -2355,7 +2129,6 @@ isDaytime() {
   }
   
   static _calcHealth(paramInt1, paramInt2, paramBoolean) {
-    diagnostico('_calcHealth', this, arguments);
     let j = this.randomBetween(paramInt1, paramInt2, this.a);
     if (this.h.a === 2) j += j >> 1;
     if (j >= this.C && paramBoolean) j = this.C - 1;
@@ -2371,7 +2144,6 @@ isDaytime() {
   }
   
   static advanceClock(paramInt) {
-    diagnostico('advanceClock', this, arguments); /* jTick */
     this.z += paramInt;
     // i.java:2638 usa división entera: (z - 12) / 24 trunca hacia cero.
     // En JS sin truncar salía -0.458 mientras z < 12; A es byte y nunca negativo.
@@ -2409,7 +2181,6 @@ isDaytime() {
   }
   
   static runEntityAiForCurrentTile() {
-    diagnostico('runEntityAiForCurrentTile', this, arguments);
     if (this.s === null) {
       this.k = false;
       let b;
@@ -2436,7 +2207,6 @@ isDaytime() {
   }
   
   static entityAiK(paramInt) {
-    diagnostico('entityAiK', this, arguments);
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       if (this.isDaytime()) {
@@ -2459,7 +2229,6 @@ isDaytime() {
   }
   
   static entityAiL(paramInt) {
-    diagnostico('entityAiL', this, arguments);
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       if (this.isDaytime()) {
@@ -2480,7 +2249,6 @@ isDaytime() {
   }
   
   static entityAiM(paramInt) {
-    diagnostico('entityAiM', this, arguments);
     if (this.aCam[paramInt] !== null) {
       if (!this.isDaytime()) {
         if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
@@ -2513,7 +2281,6 @@ isDaytime() {
   }
   
   static applyHourSixDelta() {
-    diagnostico('applyHourSixDelta', this, arguments);
     if (this.i === 6) {
       for (let b = 0; b < this.u; b++) {
         for (let b1 = 0; b1 < this.r.length; b1++) {
@@ -2529,7 +2296,6 @@ isDaytime() {
   }
   
   static entityAiN(paramInt) {
-    diagnostico('entityAiN', this, arguments); /* nB */
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       if (this.tileFieldBits(this.i[paramInt], this.j[paramInt], this.prevX, this.g)) {
@@ -2548,7 +2314,6 @@ isDaytime() {
   }
   
   static entityAiO(paramInt) {
-    diagnostico('entityAiO', this, arguments);
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       if (!this.randomBetween() || this.randomBetween(0, 100, this.a) <= 50) {
@@ -2562,7 +2327,6 @@ isDaytime() {
   }
   
   static entityAiP(paramInt) {
-    diagnostico('entityAiP', this, arguments); /* pAdd */
     if (this.aCam[paramInt] !== null) {
       if (!this.isDaytime()) {
         this.aCam[paramInt] = false;
@@ -2580,7 +2344,6 @@ isDaytime() {
   }
   
   static entityAiQ(paramInt) {
-    diagnostico('entityAiQ', this, arguments);
     if (this.aCam[paramInt] !== null) {
       if (this.d === this.i[paramInt] && this.e === this.j[paramInt]) return;
       let j;
@@ -2598,12 +2361,10 @@ isDaytime() {
   }
   
   static isAdjacentPos(paramInt1, paramInt2, paramInt3, paramInt4) {
-    diagnostico('isAdjacentPos', this, arguments);
     return (paramInt1 >= paramInt3 - 1 && paramInt1 <= paramInt3 + 1 && paramInt2 >= paramInt4 - 1 && paramInt2 <= paramInt4 + 1);
   }
   
   static randomizeEntityPosition(paramInt) {
-    diagnostico('randomizeEntityPosition', this, arguments);
 // Java i.java:2879 r(int). Delegated to placeEntity (i.js:581): this body used
 // to write this.i/this.j/this.k/this.l, but this.i is the game-state counter
 // and this.j/this.k/this.l are scalars here, so `this.i[paramInt] = b1` threw
@@ -2613,24 +2374,27 @@ isDaytime() {
   }
   
   static tileFieldBits(paramByte1, paramByte2, paramInt1, paramInt2) {
-    diagnostico('tileFieldBits', this, arguments);
+    // Java has two overloads: (byte,byte,int,int) returns shifted tile bits, while
+    // (byte,byte,boolean,boolean) returns the terrain colour. The port collapsed
+    // them, so _drawEntityClip() was passing 0/1 as colours to renderCell20().
+    if (typeof paramInt2 === 'boolean') {
+      const type = this.tileFieldBits(paramByte1, paramByte2, 0, 7);
+      return this._getTerrainColor(type, !!paramInt1, paramInt2);
+    }
     return (paramByte1 >= 0 && paramByte1 < this.mapW && paramByte2 >= 0 && paramByte2 < this.mapH) ? ((this.s[paramByte1 + paramByte2 * this.mapW] & paramInt2) >> paramInt1) : ((paramByte2 >= this.mapH) ? -1 : 6);
   }
   
   static _isDaytime() {
     const resultado = (this.i >= 6 && this.i <= 17);
-    diagnostico('_isDaytime', this, arguments, resultado);
     return resultado;
   }
   
   static unresolvedA2115(paramInt1, paramInt2) {
-    diagnostico('unresolvedA2115', this, arguments);
     // Bytecode decompiled - method stub
     return false;
   }
   
   static wanderEntity(paramInt) {
-    diagnostico('wanderEntity', this, arguments);
     let b = 0;
     do {
       let j = this.randomBetween(-1, 1, this.a);
@@ -2640,7 +2404,6 @@ isDaytime() {
   }
   
   static faceEntityTowards(paramInt1, paramInt2, paramInt3) {
-    diagnostico('faceEntityTowards', this, arguments);
     let bool1;
     let bool2;
     if (this.i[paramInt1] === paramInt2 && this.j[paramInt1] === paramInt3) return;
@@ -2670,12 +2433,10 @@ isDaytime() {
   }
   
   static unresolvedC2158(paramInt1, paramInt2, paramInt3) {
-    diagnostico('unresolvedC2158', this, arguments);
     // Bytecode decompiled - method stub
   }
   
   static stepEntity(paramInt1, paramInt2, paramInt3, paramBoolean) {
-    diagnostico('stepEntity', this, arguments);
     if ((paramInt2 !== 0 || paramInt3 !== 0) && (this.k[paramInt1] !== this.i[paramInt1] + paramInt2 || this.l[paramInt1] !== this.j[paramInt1] + paramInt3 || !paramBoolean) && this.canPlaceEntity(this.i[paramInt1] + paramInt2, this.j[paramInt1] + paramInt3, paramInt1)) {
       this.k[paramInt1] = this.i[paramInt1];
       this.l[paramInt1] = this.j[paramInt1];
@@ -2687,7 +2448,6 @@ isDaytime() {
   }
   
   static canPlaceEntity(paramByte1, paramByte2, paramInt) {
-    diagnostico('canPlaceEntity', this, arguments);
     if (!this.legacyTilePassableNoop(paramByte1, paramByte2)) return false;
     if (this.tileFieldBits(paramByte1, paramByte2, 0, 7) === 7) return false;
     if (this.tileFieldBits(paramByte1, paramByte2, 0, 7) === 6) return false;
@@ -2707,7 +2467,6 @@ isDaytime() {
   }
   
   static isWalkable(paramInt1, paramInt2) {
-    diagnostico('isWalkable', this, arguments);
     if (paramInt1 < 0 || paramInt1 >= this.mapW || paramInt2 < 0 || paramInt2 >= this.mapH) return false;
     let j = this.tileFieldBits(paramInt1, paramInt2, 0, 7);
     let k = this.tileFieldBits(paramInt1, paramInt2, 13, 57344);
@@ -2715,19 +2474,16 @@ isDaytime() {
   }
   
   static randomBetween(paramInt1, paramInt2, paramRandom) {
-    diagnostico('randomBetween', this, arguments);
     if (paramInt2 - paramInt1 + 1 === 0) paramInt2++;
     return (paramRandom.nextInt() >>> 1) % (paramInt2 - paramInt1 + 1) + paramInt1;
   }
   
   static _paintEntry(paramGraphics) {
-    diagnostico('_paintEntry', this, arguments);
     paramGraphics.setClip(0, 0, 176, 208);
     i._renderAll.call(this, paramGraphics, true);
   }
   
   static _renderAll(paramGraphics, paramBoolean) {
-    diagnostico('_renderAll', this, arguments);
     // Cada etapa se pinta en su propio clip para que un fillRect/gradient de
     // una etapa no termine borrando lo que dibujaron las anteriores.
     const clip = [paramGraphics.getClipX(), paramGraphics.getClipY(),
@@ -2747,10 +2503,10 @@ isDaytime() {
     if (!paramBoolean) return;
     stage(i._renderUI, paramGraphics);
     paramGraphics.setClip(clip[0], clip[1], clip[2], clip[3]);
+    i._flushMapSpriteMove.call(this);
   }
 
   static _renderUI(paramGraphics) {
-    diagnostico('_renderUI', this, arguments);
     // La barra inferior (vida, reloj, brújula y objeto) es la única parte de
     // la interfaz con un puerto completo; el resto son stubs con campos Java
     // sin enlazar y se omiten hasta que se porten.
@@ -3566,7 +3322,6 @@ isDaytime() {
   */
   
   static _fillTerrainBg(paramInt1, paramInt2, paramInt3, paramInt4, paramGraphics) {
-    diagnostico('_fillTerrainBg', this, arguments);
     paramGraphics.setClip(paramInt1, paramInt2, paramInt3, paramInt4);
     let j = 0;
     let k = 42;
@@ -3586,14 +3341,12 @@ isDaytime() {
   }
   
   static _renderEntities(paramInt, paramGraphics) {
-    diagnostico('_renderEntities', this, arguments);
     try {
       i._renderEntitiesInner.call(this, paramInt, paramGraphics);
     } catch(_e) {  }
   }
 
   static _renderEntitiesInner(paramInt, paramGraphics) {
-    diagnostico('_renderEntitiesInner', this, arguments);
     try {
       let b;
       for (b = 0; b < 5; b++) {
@@ -3655,16 +3408,13 @@ isDaytime() {
   }
   
   static _renderOverlay(paramGraphics) {
-    diagnostico('_renderOverlay', this, arguments);
   }
   
   static _renderTerrain(paramGraphics) {
-    diagnostico('_renderTerrain', this, arguments);
     try { i._renderTerrainInner.call(this, paramGraphics); } catch(_e) {  }
   }
 
   static _renderTerrainInner(paramGraphics) {
-    diagnostico('_renderTerrainInner', this, arguments);
     let b1;
     let i4;
     let i6;
@@ -3860,7 +3610,6 @@ isDaytime() {
   }
   
   static _drawEntityClip(paramByte1, paramByte2, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics) {
-    diagnostico('_drawEntityClip', this, arguments);
     let j = 0;
     let k = 0;
     let b1 = 0;
@@ -3902,7 +3651,6 @@ isDaytime() {
   }
   
   static _drawEntityMask(paramByte1, paramByte2, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics) {
-    diagnostico('_drawEntityMask', this, arguments);
     try {
       i._drawEntityClip.call(this, paramByte1, paramByte2, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics);
     } catch(_e) {}
@@ -3920,7 +3668,6 @@ isDaytime() {
   }
   
   static _drawEntityObject(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics) {
-    diagnostico('_drawEntityObject', this, arguments);
     let j = i._getTerrainColor.call(this, paramInt5, paramInt6, 13, 57344);
     let k = 0;
     if (j !== 2 && j !== 4)
@@ -3947,7 +3694,6 @@ isDaytime() {
   }
   
   static _drawEntityOverlay(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics) {
-    diagnostico('_drawEntityOverlay', this, arguments);
     let s1 = -1;
     let s2 = -1;
     let j = i._getTerrainColor.call(this, paramInt4, paramInt5, 13, 57344);
@@ -3984,7 +3730,6 @@ isDaytime() {
   }
   
   static _playEntityAnim(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics, paramBoolean) {
-    diagnostico('_playEntityAnim', this, arguments);
     let b = -1;
     switch (paramInt3) {
       case 66:
@@ -4006,7 +3751,6 @@ isDaytime() {
   }
   
   static renderRegion(paramInt1, paramInt2) {
-    diagnostico('renderRegion', this, arguments);
     if (paramInt2 <= 103)
       return false; 
     if (this.tileFieldBits(d, e, 0, 7) !== 7)
@@ -4038,7 +3782,6 @@ isDaytime() {
   }
   
   static _waterVariantAt(paramInt1, paramInt2) {
-    diagnostico('_waterVariantAt', this, arguments);
     // Java i.java:7502/7506 — variant 0..3 of the water shore at (x, y),
     // from which side the water tile neighbours are, rotated by heading h.
     const h = this.h & 3;
@@ -4062,13 +3805,15 @@ isDaytime() {
   }
 
   static _drawTerrainColumn(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramGraphics) {
-    diagnostico('_drawTerrainColumn', this, arguments);
     try { i._drawTerrainColumnInner.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramGraphics); } catch(_e) {  }
   }
 
   static _drawTerrainColumnInner(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramGraphics) {
-    diagnostico('_drawTerrainColumnInner', this, arguments);
     if (typeof paramInt1 !== 'number' || typeof paramInt2 !== 'number') return;
+    const trackMapSprite = (id) => {
+      const pending = this._mapSpritePending;
+      if (pending && paramInt1 === pending.toX && paramInt2 === pending.toY) pending.sprites.add(id);
+    };
     let rState = ((paramInt1 + 91) * 374761393 + (paramInt2 + 43) * 668265263 + (paramInt3 + 17) * 2246822519 + paramInt7 * 3266489917) >>> 0;
     if (rState === 0) rState = 1;
     const rr = (lo, hi) => {
@@ -4160,6 +3905,7 @@ isDaytime() {
           b1 = 0;
         } 
         if (i3 !== 7 || j < i11 || j > i12) {
+          trackMapSprite(n);
           try {
             const _jx = rr(-b1, b1);
             const _jy = rr(-b1, b1);
@@ -4168,9 +3914,11 @@ isDaytime() {
         }
         if (j === paramInt3 + paramInt5) {
           if (i11 !== -1) {
+            trackMapSprite(n);
             try { cRes.drawSprite(n, i11, k, paramGraphics); } catch(_e) {}
           }
           if (i12 !== 666) {
+            trackMapSprite(n);
             try { cRes.drawSprite(n, i12, k, paramGraphics); } catch(_e) {}
           }
           if (k === paramInt4 + paramInt6)
@@ -4195,7 +3943,6 @@ isDaytime() {
   }
   
   static _lineIntersect(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8) {
-    diagnostico('_lineIntersect', this, arguments);
     let j;
     if ((j = paramInt1 * (paramInt8 - paramInt6) + paramInt3 * (paramInt6 - paramInt8) + paramInt7 * (paramInt4 - paramInt2) + paramInt5 * (paramInt2 - paramInt4)) === 0)
       return -1; 
@@ -4204,7 +3951,6 @@ isDaytime() {
   }
   
   static renderTileColumn(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics, paramBoolean) {
-    diagnostico('renderTileColumn', this, arguments);
     let j = 0;
     let k = 0;
     let m = 0;
@@ -4346,12 +4092,10 @@ isDaytime() {
   }
   
   static _randomArrayEl(paramArrayOfshort) {
-    diagnostico('_randomArrayEl', this, arguments);
     return paramArrayOfshort[this.randomBetween(0, paramArrayOfshort.length - 1, c)];
   }
   
   static _drawEntityHouse(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics) {
-    diagnostico('_drawEntityHouse', this, arguments);
     let j;
     if ((j = this.tileFieldBits(paramInt5, paramInt6, 0, 7)) !== 6)
       return; 
@@ -4375,14 +4119,12 @@ isDaytime() {
   }
   
   static _renderMinimap(paramGraphics) {
-    diagnostico('_renderMinimap', this, arguments);
     try {
       i._renderMinimapInner.call(this, paramGraphics);
     } catch(_e) { /* minimap bare refs expected to fail */ }
   }
 
   static _renderMinimapInner(paramGraphics) {
-    diagnostico('_renderMinimapInner', this, arguments);
     let minimapX = (this.d - 2);
     if (minimapX < 0) minimapX = 0;
     if (minimapX > this.mapW - 5) minimapX = (this.mapW - 5);
@@ -4398,7 +4140,6 @@ isDaytime() {
   }
   
   renderFrameBorder(paramInt1, paramInt2, paramInt3, paramInt4, paramGraphics) {
-    diagnostico('renderFrameBorder', this, arguments);
     let j = c.a(216, 2);
     paramGraphics.setClip(paramInt1 - j, paramInt2 - j, paramInt3 + (j << 1), paramInt4 + (j << 1));
     let b;
@@ -4418,7 +4159,6 @@ isDaytime() {
   }
   
   static _updateMinimapIcons(paramBoolean, paramGraphics) {
-    diagnostico('_updateMinimapIcons', this, arguments);
     let b1 = -1;
     if (!paramBoolean) {
       let b;
@@ -4598,7 +4338,6 @@ isDaytime() {
   }
   
   static legacyPortalRegistryUpdate(paramInt1, paramInt2) {
-    diagnostico('legacyPortalRegistryUpdate', this, arguments);
     // Byte code:
     //   0: iload_1
     //   1: tableswitch default -> 178, 0 -> 28, 1 -> 103, 2 -> 106
@@ -4693,7 +4432,6 @@ isDaytime() {
   }
   
   static tickPortalTimers() {
-    diagnostico('tickPortalTimers', this, arguments);
     // Byte code:
     //   0: iconst_0
     //   1: istore_0
@@ -4793,19 +4531,16 @@ isDaytime() {
   }
   
   static _getTerrainColorSimple(paramByte1, paramByte2) {
-    diagnostico('_getTerrainColorSimple', this, arguments);
     let j;
     return this._terrainTypeColor(this.tileFieldBits(paramByte1, paramByte2, 0, 7));
   }
   
   static _getTerrainColorAt(paramByte1, paramByte2, paramBoolean1, paramBoolean2) {
-    diagnostico('_getTerrainColorAt', this, arguments);
     let j;
     return this._getTerrainColor(this.tileFieldBits(paramByte1, paramByte2, 0, 7), paramBoolean1, paramBoolean2);
   }
   
   static _terrainTypeColor(paramInt) {
-    diagnostico('_terrainTypeColor', this, arguments);
     switch (paramInt) {
       case 0:
         return 10400556;
@@ -4826,28 +4561,27 @@ isDaytime() {
   }
   
   static _getTerrainColor(paramInt, paramBoolean1, paramBoolean2) {
-    diagnostico('_getTerrainColor', this, arguments);
     let bool;
     let b = 0;
-    if (i === 5) {
+    if (this.i === 5) {
       bool = true;
-    } else if (i === 6) {
+    } else if (this.i === 6) {
       bool = true;
-    } else if (i === 7) {
+    } else if (this.i === 7) {
       bool = true;
-    } else if (i === 17) {
+    } else if (this.i === 17) {
       bool = true;
-    } else if (i === 18) {
+    } else if (this.i === 18) {
       bool = true;
-    } else if (i === 19) {
+    } else if (this.i === 19) {
       bool = true;
-    } else if (i > 7 && i < 17) {
+    } else if (this.i > 7 && this.i < 17) {
       bool = true;
     } else {
       bool = false;
-    } 
+    }
     if (!paramBoolean2)
-      b = 1; 
+      b = 1;
     switch (paramInt) {
       case 0:
       case 1:
@@ -4858,12 +4592,11 @@ isDaytime() {
         return paramBoolean1 ? hColorThresholds[0 + b][bool] : hColorThresholds[2 + b][bool];
       case 7:
         return paramBoolean1 ? hColorThresholds[4 + b][bool] : hColorThresholds[6 + b][bool];
-    } 
+    }
     return 0;
   }
   
   static _drawMinimapTile(paramByte1, paramByte2, paramInt1, paramInt2, paramGraphics) {
-    diagnostico('_drawMinimapTile', this, arguments);
     // El portador dejó `g`/`b` y varias listas de iconos como nombres sueltos
     // Java; `b` además colisionaba con el `let b` de los bucles y daba TDZ.
     // Se usa el estado real: this.tileFlags/this.tileData y this.mapW.
@@ -4908,13 +4641,11 @@ isDaytime() {
   }
   
   static _drawRectOutline(paramInt1, paramInt2, paramInt3, paramGraphics) {
-    diagnostico('_drawRectOutline', this, arguments);
     paramGraphics.setColor(14561842);
     paramGraphics.drawRect(paramInt1, paramInt2, paramInt3 - 1, paramInt3 - 1);
   }
   
   static _renderUIBar(paramGraphics) {
-    diagnostico('_renderUIBar', this, arguments);
     let bool1 = false;
     let j = c.a(222, 2) || 6;
     paramGraphics.setColor(0);
@@ -5009,7 +4740,6 @@ isDaytime() {
   }
   
   static _drawCompassMark(paramInt, paramGraphics) {
-    diagnostico('_drawCompassMark', this, arguments);
     paramGraphics.setColor(0);
     paramGraphics.drawRect(21, paramInt + 9, 38, 18);
     paramGraphics.drawLine(21, paramInt + 39 - 12, 58, paramInt + 8);
@@ -5023,7 +4753,6 @@ isDaytime() {
   }
   
   static _drawNumber(paramInt1, paramInt2, paramInt3, paramGraphics) {
-    diagnostico('_drawNumber', this, arguments);
     if (!Number.isFinite(paramInt3)) return;
     paramInt3 = Math.trunc(paramInt3);
     const j = c.a(222, 2) || 6;
@@ -5041,7 +4770,6 @@ isDaytime() {
   }
   
   static _renderTerrainOverlay(paramGraphics) {
-    diagnostico('_renderTerrainOverlay', this, arguments);
     let j = this.tileFieldBits(d, e, 0, 7);
     if (r !== -1 && (j === 0 || j === 3 || j === 7) && c === null && e === 0) {
       let k;
@@ -5053,7 +4781,6 @@ isDaytime() {
   }
   
   static _renderFullMinimap(paramGraphics) {
-    diagnostico('_renderFullMinimap', this, arguments);
     let j;
     let k = 176 / b;
     let m = 208 / c;
@@ -5170,7 +4897,6 @@ isDaytime() {
   }
   
   static markVisitedTiles() {
-    diagnostico('markVisitedTiles', this, arguments); /* u */
     for (let b = -1; b < 2; b++) {
       for (let b1 = -1; b1 < 2; b1++) {
         if (d + b >= 0 && d + b < b && e + b1 >= 0 && e + b1 < c && (g[d + b + (e + b1) * b] & true) === 0)
@@ -5180,7 +4906,6 @@ isDaytime() {
   }
   
   renderIntroFrame(paramGraphics) {
-    diagnostico('renderIntroFrame', this, arguments);
     if (u !== 0) {
       paramGraphics.setColor(0);
       paramGraphics.fillRect(0, 0, 176, 208);
@@ -5236,7 +4961,6 @@ isDaytime() {
   }
   
   static _renderActionIcons(paramGraphics) {
-    diagnostico('_renderActionIcons', this, arguments);
     R = true;
     let j = 0;
     if (g) {
@@ -5273,7 +4997,6 @@ isDaytime() {
   }
   
   static spriteRowForId(paramInt) {
-    diagnostico('spriteRowForId', this, arguments);
     switch (paramInt) {
       case 101:
         return 72;
@@ -5286,7 +5009,6 @@ isDaytime() {
   }
   
   static _renderInventory(paramGraphics) {
-    diagnostico('_renderInventory', this, arguments);
     let j = 0;
     if (l !== null && (B !== 4 || a()) && B !== -1) {
       let k = H + 7 + 20 + 33;
@@ -5352,7 +5074,6 @@ isDaytime() {
   }
   
   static _drawUIFrame(paramInt1, paramInt2, paramInt3, paramInt4, paramBoolean, paramInt5, paramGraphics) {
-    diagnostico('_drawUIFrame', this, arguments);
     paramGraphics.setColor(0);
     paramGraphics.fillRect(paramInt1, paramInt2, paramInt3, paramInt4);
     paramGraphics.setColor(9408399);
@@ -5366,7 +5087,6 @@ isDaytime() {
   }
   
   static _renderWaterAnim(paramGraphics) {
-    diagnostico('_renderWaterAnim', this, arguments);
     if (m && l === null) {
       let j = 0 + H + 7 + 20 + 33;
       let k = 88 - ((n - 1) * (u + y) >> 1);
@@ -5407,7 +5127,6 @@ isDaytime() {
   }
   
   static queueMessage(paramInt) {
-    diagnostico('queueMessage', this, arguments); /* tMsg */
     for (let b = 0; b < k.length; b++) {
       if (k[b] === paramInt)
         return; 
@@ -5420,7 +5139,6 @@ isDaytime() {
   }
   
   static updateWeatherParticles(paramInt) {
-    diagnostico('updateWeatherParticles', this, arguments); /* uStep */
     let b1 = 0;
     for (let b2 = 0; b2 < paramInt; b2++) {
       b1 = 0;
@@ -5460,29 +5178,28 @@ isDaytime() {
   }
   // [port-gap] stubs for systems not yet ported (party AI, steps/encounters, stats, timers).
   static partyTickStub() {
-    diagnostico('partyTickStub', this, arguments);}
+  }
   static stepCounterStub() {
-    diagnostico('stepCounterStub', this, arguments);}
+  }
   static randomEncounterStub() {
-    diagnostico('randomEncounterStub', this, arguments);}
+  }
   static stepSoundStub() {
-    diagnostico('stepSoundStub', this, arguments);}
+  }
   static fieldEventStub() {
-    diagnostico('fieldEventStub', this, arguments);}
+  }
   static cursorMoveStub() {
-    diagnostico('cursorMoveStub', this, arguments);}
+  }
   static entityActionStub() {
-    diagnostico('entityActionStub', this, arguments);}
+  }
   static ambientTimerStub() {
-    diagnostico('ambientTimerStub', this, arguments);}
+  }
   static statValueStub() {
-    diagnostico('statValueStub', this, arguments);}
+  }
   static inventoryRefreshStub() {
-    diagnostico('inventoryRefreshStub', this, arguments);}
+  }
   static partyRefreshStub() {
-    diagnostico('partyRefreshStub', this, arguments);}
+  }
   writeInt(paramArrayOfbyte, paramInt1, paramInt2) {
-    diagnostico('writeInt', this, arguments);
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 24 & 0xFF);
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 16 & 0xFF);
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 8 & 0xFF);
@@ -5490,34 +5207,28 @@ isDaytime() {
     return paramInt1;
   }
   unsignedByte(paramByte) {
-    diagnostico('unsignedByte', this, arguments);
     return paramByte & 0xFF;
   }
   
   readInt32BE(paramArrayOfbyte) {
-    diagnostico('readInt32BE', this, arguments);
     return this.unsignedByte(paramArrayOfbyte[O++]) << 24 | this.unsignedByte(paramArrayOfbyte[O++]) << 16 | this.unsignedByte(paramArrayOfbyte[O++]) << 8 | this.unsignedByte(paramArrayOfbyte[O++]);
   }
   readUnsignedShort(paramArrayOfbyte) {
-    diagnostico('readUnsignedShort', this, arguments);
     return (this.unsignedByte(paramArrayOfbyte[O++]) << 8 | this.unsignedByte(paramArrayOfbyte[O++]));
   }
   
   readBoolByte(paramArrayOfbyte) {
-    diagnostico('readBoolByte', this, arguments);
     let b;
     return ((b = paramArrayOfbyte[O++]) === 1);
   }
   
   writeInt16BE(paramArrayOfbyte, paramInt1, paramInt2) {
-    diagnostico('writeInt16BE', this, arguments);
     paramArrayOfbyte[paramInt1++] = (paramInt2 >> 8 & 0xFF);
     paramArrayOfbyte[paramInt1++] = (paramInt2 & 0xFF);
     return paramInt1;
   }
   
   calcScore() {
-    diagnostico('calcScore', this, arguments);
     if (C !== 0) {
       g = true;
     } else {
@@ -5555,7 +5266,6 @@ isDaytime() {
   }
   
   writeBoolByte(paramArrayOfbyte, paramInt, paramBoolean) {
-    diagnostico('writeBoolByte', this, arguments);
     if (paramBoolean) {
       paramArrayOfbyte[paramInt++] = 1;
     } else {
@@ -5565,7 +5275,6 @@ isDaytime() {
   }
   
   writeSaveRecord() {
-    diagnostico('writeSaveRecord', this, arguments);
     N = z;
     h.b = 1;
     let j = 0;
@@ -5717,7 +5426,6 @@ isDaytime() {
   }
   
   unresolvedB5142() {
-    diagnostico('unresolvedB5142', this, arguments);
     // Byte code:
     //   0: iconst_0
     //   1: putstatic i.O : I
@@ -6562,7 +6270,6 @@ isDaytime() {
   }
   
   unresolvedC5986() {
-    diagnostico('unresolvedC5986', this, arguments);
     // Byte code:
     //   0: iconst_0
     //   1: putstatic i.x : Z
@@ -6868,7 +6575,6 @@ isDaytime() {
   }
   
   leaveLevel(paramBoolean) {
-    diagnostico('leaveLevel', this, arguments);
     if (m !== 8)
       if (a === -1) {
         p();
@@ -6886,7 +6592,6 @@ isDaytime() {
   }
   
   playSound(paramInt) {
-    diagnostico('playSound', this, arguments);
     if (paramInt !== -1 && paramInt !== a) {
       a = paramInt;
       m.a(27, h.a);
@@ -6894,17 +6599,14 @@ isDaytime() {
   }
   
   setFlagAn() {
-    diagnostico('setFlagAn', this, arguments);
     an = true;
   }
   
   clearFlagAn() {
-    diagnostico('clearFlagAn', this, arguments);
     an = false;
   }
   
   legacyAdvanceDialogTimer() {
-    diagnostico('legacyAdvanceDialogTimer', this, arguments);
     // Byte code:
     //   0: getstatic i.t : I
     //   3: ifle -> 136
@@ -6971,7 +6673,6 @@ isDaytime() {
   }
   
   legacyDialogAdvance() {
-    diagnostico('legacyDialogAdvance', this, arguments);
     if (t > null) {
       let b;
       for (b = 0; b < d.length && d[b] < 0; b++);
@@ -6985,7 +6686,6 @@ isDaytime() {
   }
   
   showMessageDialog(paramInt1, paramArrayOfString, paramInt2) {
-    diagnostico('showMessageDialog', this, arguments);
     // Byte code:
     //   0: getstatic i.d : [I
     //   3: getstatic i.t : I
@@ -7013,7 +6713,6 @@ isDaytime() {
   }
   
   static _drawTileGradient(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt14, paramBoolean) {
-    diagnostico('_drawTileGradient', this, arguments);
     let b1;
     let b2;
     let b3;
@@ -7189,7 +6888,6 @@ isDaytime() {
   }
   
   renderCell20(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt14, paramInt15, paramInt16, paramInt17, paramInt18, paramInt19) {
-    diagnostico('renderCell20', this, arguments);
     let j = 0;
 // Java i.java:7487 - a(int,int) is this.facingFromTileBits (i.java:7502), and the
 // 'h' selector is the per-screen lighting state this.h (0..8 -> hDayBounds rows).
@@ -7209,7 +6907,6 @@ isDaytime() {
   }
   
   renderTileColumn16(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramInt8, paramInt9, paramInt10, paramInt11, paramInt12, paramInt13, paramGraphics, paramInt14, paramBoolean) {
-    diagnostico('renderTileColumn16', this, arguments);
 // Java i.java:7289 a(int x13, Graphics, int, boolean) — the 16-arg decor-strip
 // renderer. It walks the quad (paramInt6,paramInt7)-(paramInt10,paramInt11) and
 // paints a per-scanline colour gradient between paramInt4 and paramInt5. These
@@ -7435,12 +7132,10 @@ isDaytime() {
   }
 
   facingFromTileBits(paramInt1, paramInt2) {
-    diagnostico('facingFromTileBits', this, arguments);
     return this.renderSpriteOffset(7, paramInt1, paramInt2, 6) ? (this.renderSpriteOffset(7, paramInt1, paramInt2, 2) ? 3 : 2) : (this.renderSpriteOffset(7, paramInt1, paramInt2, 2) ? 1 : (this.renderSpriteOffset(7, paramInt1, paramInt2, 0) ? 0 : (this.renderSpriteOffset(7, paramInt1, paramInt2, 4) ? 0 : 0)));
   }
   
   renderSpriteOffset(paramInt1, paramByte1, paramByte2, paramInt2) {
-    diagnostico('renderSpriteOffset', this, arguments);
  ;
     let j;
     let l;
@@ -7562,7 +7257,6 @@ isDaytime() {
   }
   
   clampByte(paramInt) {
-    diagnostico('clampByte', this, arguments);
     if (paramInt > 255) {
       paramInt = 255;
     } else if (paramInt < 0) {
@@ -7572,7 +7266,6 @@ isDaytime() {
   }
   
   loadCollisionMap() {
-    diagnostico('loadCollisionMap', this, arguments); /* g */
     let b1 = 0;
     c.a(63);
     b1++;
@@ -7747,7 +7440,6 @@ isDaytime() {
   }
   
   handleTileField(paramByte1, paramByte2) {
-    diagnostico('handleTileField', this, arguments);
   let j;
   // Llamada a 'a' debe ser con this.a si es método estático de la misma clase
   if ((j = this.tileFieldBits(paramByte1, paramByte2, 13, 57344)) === 3 || j === -1) {
@@ -7780,7 +7472,6 @@ isDaytime() {
 
   
   addToTileListC(paramByte1, paramByte2) {
-    diagnostico('addToTileListC', this, arguments);
     if (this.isInTileListC(paramByte1, paramByte2))
       return; 
     for (let b = 0; b < C.length; b++) {
@@ -7792,7 +7483,6 @@ isDaytime() {
   }
   
   reservePathTiles(paramInt) {
-    diagnostico('reservePathTiles', this, arguments);
     if (this.isInTileSet(d, e, paramInt))
       return; 
     if (paramInt === 5) {
@@ -7825,7 +7515,6 @@ isDaytime() {
   }
   
   isTileBlocked(paramByte1, paramByte2) {
-    diagnostico('isTileBlocked', this, arguments);
     let j;
     if ((j = this.tileFieldBits(paramByte1, paramByte2, 13, 57344)) === 3 || j === -1)
       return false; 
@@ -7844,7 +7533,6 @@ isDaytime() {
   }
   
   isInTileListC(paramByte1, paramByte2) {
-    diagnostico('isInTileListC', this, arguments);
     for (let b = 0; b < C.length; b++) {
       if (C[b] === (paramByte1 + paramByte2 * b))
         return true; 
@@ -7853,7 +7541,6 @@ isDaytime() {
   }
   
   isInTileSet(paramInt1, paramInt2, paramInt3) {
-    diagnostico('isInTileSet', this, arguments);
     if (paramInt3 === 5) {
       for (let b = 0; b < A.length; b++) {
         if (A[b] === (paramInt1 + paramInt2 * b))
@@ -7874,7 +7561,6 @@ isDaytime() {
   }
   
   drawHouseLayer(paramInt1, paramInt2, paramInt3, paramGraphics) {
-    diagnostico('drawHouseLayer', this, arguments);
     const row = hPrefabs[paramInt3];
     if (!row) return;
     for (let b = 0; b < row.length; b += 3) {
@@ -7885,7 +7571,6 @@ isDaytime() {
   }
   
   initParticlePools() {
-    diagnostico('initParticlePools', this, arguments);
     a = new f(150, 0, 0, 0, 0, 0, true);
     b = new f(300, 0, 0, 0, 0, 0, false);
     c = new f(80, 0, 8, 0, 0, 0, false);
@@ -7901,7 +7586,6 @@ isDaytime() {
   }
   
   legacyNpcMove(paramInt) {
-    diagnostico('legacyNpcMove', this, arguments);
     switch (A) {
       case 4:
         j = 0;
@@ -8084,7 +7768,6 @@ isDaytime() {
   }
   
   renderEntityOverlayGraphics(paramGraphics) {
-    diagnostico('renderEntityOverlayGraphics', this, arguments);
     if (A === 0 || c !== null || h || e !== 0 || this.tileFieldBits(d, e, 13, 57344) === 2 || this.tileFieldBits(d, e, 13, 57344) === 4)
       return; 
     paramGraphics.setClip(0, 0, 176, 169);
@@ -8129,7 +7812,6 @@ isDaytime() {
   }
   
   storeEntityFixed(paramInt1, paramInt2, paramInt3, paramInt4) {
-    diagnostico('storeEntityFixed', this, arguments);
     let j = paramInt1 >> 14;
     let k = paramInt2 >> 14;
     if (c(j + 18, k) && c(j - 18, k)) {
@@ -8145,7 +7827,6 @@ isDaytime() {
   }
   
   clearEntityViews() {
-    diagnostico('clearEntityViews', this, arguments);
     for (let b = 0; b < 20; b++) {
       s[b] = 0;
       t[b] = 0;
@@ -8154,7 +7835,6 @@ isDaytime() {
   }
   
   renderWeatherFx(paramInt1, paramByte, paramInt2) {
-    diagnostico('renderWeatherFx', this, arguments);
     let j;
     let k;
     let b;
@@ -8211,7 +7891,6 @@ isDaytime() {
   }
   
   renderMarkerOverlay(paramGraphics) {
-    diagnostico('renderMarkerOverlay', this, arguments);
     paramGraphics.setClip(0, 0, 176, 169);
     let b;
     for (b = 0; b < 10; b++) {
@@ -8240,7 +7919,6 @@ isDaytime() {
   }
   
   renderCaveInterior(paramGraphics) {
-    diagnostico('renderCaveInterior', this, arguments);
     if (E === 0)
       return; 
     let j = ao ? (296 - D) : (291 + D);
@@ -8251,7 +7929,6 @@ isDaytime() {
   }
   
   advanceFrameCounter(paramInt) {
-    diagnostico('advanceFrameCounter', this, arguments);
     if (E === 1) {
       aa += paramInt;
       if (aa > 70) {
@@ -8277,7 +7954,6 @@ isDaytime() {
   }
   
   setFlagAo(paramBoolean) {
-    diagnostico('setFlagAo', this, arguments);
     ao = paramBoolean;
     E = 1;
   }

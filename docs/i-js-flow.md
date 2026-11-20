@@ -21,10 +21,10 @@ inner classes into a single file, which is why names are repeated (`i`, `j`, `a`
 - Module-level "loose" field declarations (`i.js:12-17`): the port retained Java-style
   references (`A`, `B`, ...), which are declared here to avoid `ReferenceError`. They
   are not actual state.
-- Structured diagnostics (`i.js:105-317`): `diagnostico()`, `DIAG_META` y `DIAG_VISTOS`.
-  Cada método emite **una** línea en consola la primera vez que se ejecuta, con
-  nombre generalizado en español y comparación `esperado` vs `actual` tomada de los
-  bytecode comentados y de las constantes del port. No se dibuja nada en el canvas.
+- Movement-only logging (`i._markMapSpriteMove`, `i._flushMapSpriteMove`): la
+  instrumentación por método (`diagnostico()`, `DIAG_META`, `DIAG_VISTOS`) fue
+  eliminada. `i.js` solo emite una línea por paso completado, comparando los IDs
+  de sprites de terreno dibujados en la casilla destino. No se dibuja nada en el canvas.
 - Class `i` (`i.js:421`) and the "level-1 store" at the end (`i.js:8026-8036`), which
   copies static methods to the prototype so `this.method(...)` resolves.
 
@@ -205,32 +205,31 @@ occurs, and `u/v/e` are only written and reset, so `tuftCount` remains 0.
 
 ---
 
-## 8. Diagnostics and toggles
+## 8. Logging y toggles
 
-Every method of `i.js` calls `diagnostico()` once on its first execution. The
-console line carries a generalised Spanish name (e.g. `Renderizando césped y
-franjas de cielo`), the `esperado` value from the commented bytecode and the
-`actual` runtime value, with `OK` / `DIFIERE` / `SIN REFERENCIA`. Predicates such
-as `isDaytime` pass their computed `resultado` as a fourth argument so a correct
-`no` is not mistaken for a mismatch.
+La instrumentación por método fue removida. `i.js` no registra `diagnostico()`,
+`DIAG_META` ni `DIAG_VISTOS`; los logs de `m.js`, `h.js`, `o.js`, `n.js` y
+`resources/c.js` no se tocaron.
 
-After the `bCam` fix, `docs/logs.txt` confirms the sky/terrain constants
-(`H=76`, `J=93`, ground `169`, sprite `269`) and numeric movement. Three
-remaining log anomalies were traced to decompiled `byte`/`boolean` merges:
-`advanceTimers` wrote `z=false`, `updateEntities` wrote `i=true`, and
-`advanceClock` wrote `i=false` plus a fractional `(z-12)/24`. They are now
-`0`, `1`, `0` and `Math.trunc(...)`, matching Java int semantics. The only
-remaining mis-mapping is `canUseCurrentItemStub(b2,b3)` at `i.js:1361`: Java
-calls `b(byte,byte)` there, but switching to `isInTileListC` would reintroduce
-the freeze because the `C` list is built with invalid `new short[7]` JS.
+El único log de `i.js` se emite una vez por movimiento completado, después de
+que `_renderAll()` haya dibujado el terreno:
 
-The later 59-line capture confirmed those fixes (`resultado=no | OK`, `i=0`,
-`aProgress=0..30`, movement `d=0->1->16`) and exposed two initialization false
-positives: `constructor`/`resetGameState` logged before `H`/`skyBand` existed and
-`loadTileData` logged before reading the 4-byte header. Their `diagnostico()`
-calls now run where those values are available, still once per method.
+```
+[mapa] sprite del mapa se movió | cambiaron=+159,+174,-204 | casilla=(x,y) tipo=n | desde=(x0,y0)
+```
 
-Remaining toggles:
+Flujo: `updateEntities()` llama a `_markMapSpriteMove(fromX,fromY,toX,toY)` en
+las dos ramas de paso exitoso; `_drawTerrainColumnInner()` añade a un `Set` los
+IDs de sprite generados para la casilla destino; `_flushMapSpriteMove()` compara
+ese `Set` con el snapshot del paso anterior, imprime `+id`/`-id` para los cambios
+y limpia el pending. Un giro sin cambio de casilla no genera log.
+
+`updateEntities()` también valida ahora `x` e `y` contra `mapW`/`mapH`: el aviso
+de borde cancela el paso (`return`) y `canUseCurrentItemStub(x,y)` devuelve
+`false` fuera del mapa. Antes el jugador podía llegar a `(-1,-1)` y quedarse
+atascado porque `this.e !== 0` desviaba el paso hacia la rama de agua.
+
+Los toggles restantes son:
 
 | flag | effect |
 |---|---|
