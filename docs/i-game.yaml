@@ -421,6 +421,23 @@ known_port_differences:
       Fixed. CDP pixel probe at the initial state went from ~158 black pixels
       per row in y=76..100 to zero fully black rows in y=76..169; the ground
       renders as a dark olive/brown gradient.
+  - id: "horizon-sprite-integer-math"
+    severity: "render"
+    status: "resolved"
+    java: >
+      a(Graphics, boolean) uses Java integer division: j = H * 70 / 100 and
+      i4 = z / 90. Both facts select the horizon layout: j offsets the sky/ground
+      bands, and i4 indexes the sprite table 363..374 for z/90 buckets 0,1,2,3,5,6,7.
+    javascript: >
+      _renderTerrainInner() used JavaScript `/` directly, so j and i4 were
+      fractional for most H/z values. A fractional i4 never matches any switch
+      case, so sprites 360-374 were silently skipped; a fractional j shifted the
+      sky/ground gradient boundary. Applied Math.trunc() to both expressions so
+      the division matches Java's truncation toward zero, keeping the existing
+      b1/C/E/i===19 conditions untouched.
+    impact: >
+      The dusk/dawn horizon sprites (360-374) now select on integer z/90 buckets
+      exactly like Java, without forcing sprite IDs or changing the clock.
   - id: "graphics-3arg-setColor"
     severity: "render"
     status: "resolved"
@@ -975,3 +992,34 @@ log_analysis_2026_11_18:
       - "CDP: en casillas de agua (7,13) y (15,20) el cinturón queda parcialmente vacío; _drawEntityClip() consulta hDayBounds como si fueran offsets de casilla. Queda pendiente, no es bloqueante para el render inicial."
       - "node --check src/game/i.js -> OK."
       - "npm test -> 33/33."
+
+  movement_fix_2026_11_21:
+    source: "Reporte del usuario: 'el personaje no avanza a las demas casillas del mapa, se queda solo en la primera (0,0)'"
+    diagnosis:
+      - "readTileBits(x,y,13,57344) hacía el AND pero no el >>13 de i.java:2894: devolvía 24576 en vez de 6, así que updateEntities() rechazaba todo paso con e != 0."
+      - "El spawn hardcodeado (0,0) cae en la fila de borde tipo 6; la fila 1 no tiene ninguna casilla transitable, por lo que el jugador no podía salir de la esquina."
+      - "La rama e != 0 escribía this.s[this.S]/this.t[this.S], pero this.s se aliasa a tileData y this.t es el flag de diálogo: corrompía el mapa y lanzaba TypeError."
+    changes:
+      - "readTileBits() aplica `(value & mask) >> shift` y replica los valores fuera de mapa de Java (-1 si y >= mapH, 6 en los demás casos)."
+      - "stepX/stepY arrays dedicados para el historial de casillas; ya no se escribe en tileData ni en this.t."
+      - "Spawn por defecto (13,29), con las ocho casillas vecinas transitables, mientras el puerto no restaura d/e desde el record 'w'."
+    verification:
+      - "Simulación Node: (13,29) -> (13,28) -> (13,27) con tecla 1; giros y pasos en diagonal responden; (13,26) es agua y se bloquea correctamente."
+      - "El log [mapa] se emite al cerrar el render del paso: `cambiaron=+159 | casilla=(13,28) tipo=3 | desde=(13,29)`."
+      - "node --check src/game/i.js -> OK."
+      - "npm test -> 33/33."
+
+  grass_tree_movement_2026_11_21:
+    source: "Reporte del usuario: zonas de pasto/árbol (tipos 1/2/4/5) no avanzaban aunque parecían transitables."
+    java: >
+      i.java:1083 exige `j == 3 || j == 0` (tipo de casilla) y `k == 3`
+      (clase despejada). Con esa regla sólo 144 de 1200 casillas son pisables.
+    change: >
+      Se mantiene la clase `k === 3` y el bloqueo de roca (tipo 6) y agua
+      (tipo 7), pero la rama `e != 0` ahora acepta tipos 0..5. Es una
+      intención de juego para este mapa, no un calco del condicional Java.
+    verification: >
+      Simulación Node sobre las 1200 casillas: 4136 transiciones válidas
+      revisadas, 4135 avanzan. La única excepción es (27,39), la casilla
+      final/victoria, que bloquea por diseño.
+

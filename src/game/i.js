@@ -429,6 +429,12 @@ export class i extends Screen {
 // this.f and clobbered each other, so the flag and prev-X get their own names.
     this.fFlag = 0;
     this.prevX = 0;
+    // i.java mantiene s[]/t[] como historial de casillas, pero en el puerto
+    // this.s se aliasa a tileData para el render (loadTileData) y this.t es
+    // el flag de diálogo. Sin estos arrays el primer paso fuera de la fila 0
+    // pisaba el mapa y lanzaba TypeError al escribir this.t[this.S].
+    this.stepX = new Int16Array(130);
+    this.stepY = new Int16Array(130);
 // Java i.java:76-82 — the two 8-slot effect registries driven by d(int,int) and
 // ticked by t(). n[]/D[] and o[]/E[] (index + countdown timer). Kept under
 // descriptive names because n/D/o/E are scalars elsewhere in this port.
@@ -480,8 +486,13 @@ export class i extends Screen {
     this.b = Array(9).fill(null);
     this.hero = { a() {}, d() {}, c() {}, e() {} };
     this.h = 0;
-    this.d = 0;
-    this.e = 0;
+    // El Java restaura d/e desde el record 'w' (i.java:6382/6390), que el
+    // puerto no inicializa. Dejar (0,0) situaba al jugador en la esquina de
+    // borde: la fila 0 es tipo 6 y la fila 1 no tiene ninguna casilla
+    // transitable, así que ningún paso podía sacarlo de ahí. (13,29) tiene
+    // las ocho casillas vecinas transitables y permite verificar el mapa.
+    this.d = 13;
+    this.e = 29;
 
     this.sVal = 0;
     this.rVal = 0;
@@ -1161,15 +1172,18 @@ isDaytime() {
           if (this.e !== 0) {
             let j = this.readTileBits(b2, b3, 0, 7);
             let k = this.readTileBits(b2, b3, 13, 57344);
-            if ((j === 3 || j === 0) && k === 3) {
+            // Java: `j == 3 || j == 0`. En este mapa los tipos 1/2/4/5 son
+            // pasto/árbol y el usuario los reporta como transitables; se
+            // permiten manteniendo roca (6), agua (7) y la clase k === 3.
+            if (j >= 0 && j <= 5 && k === 3) {
               this.prevX = this.d;
               this.g = this.e;
               this.d = b2;
               this.e = b3;
               i._markMapSpriteMove.call(this, fromX, fromY, b2, b3);
               this.updateWeatherParticles(1);
-              this.s[this.S] = this.d;
-              this.t[this.S] = this.e;
+              this.stepX[this.S] = this.d;
+              this.stepY[this.S] = this.e;
               this.g = false;
               this.updateWeatherParticles(1);
               this.scanEntityInteraction();
@@ -1589,8 +1603,13 @@ isDaytime() {
     if (!this.tileData) return 0;
     const x = paramByte1;
     const y = paramByte2;
-    if (x < 0 || y < 0 || y >= this.mapH || x >= this.mapW) return 0;
-    return this.tileData[y * this.mapW + x] & paramInt2;
+    // i.java:2893-2894: `(s[x + y * b] & mask) >> shift`. El puerto sólo hacía
+    // el AND, así que las lecturas de clase (13, 57344) devolvían 24576 en vez
+    // de 6 y updateEntities() rechazaba cada paso fuera de la fila 0.
+    if (x < 0 || y < 0 || y >= this.mapH || x >= this.mapW) {
+      return y >= this.mapH ? -1 : 6;
+    }
+    return (this.tileData[y * this.mapW + x] & paramInt2) >> paramInt1;
   }
 
   static legacyPaintNoop() {
@@ -3513,7 +3532,7 @@ isDaytime() {
     let b1;
     let i4;
     let i6;
-    let j = this.H * 70 / 100;
+    let j = Math.trunc(this.H * 70 / 100);
     if (this.i === 5) {
       b1 = 2;
     } else if (this.i === 6) {
@@ -3598,7 +3617,7 @@ isDaytime() {
       paramGraphics.setColor(10066329);
       if (this.E !== 0)
         paramGraphics.setColor(9838881);
-      switch (i4 = this.z / 90) {
+      switch (i4 = Math.trunc(this.z / 90)) {
         case 0:
           if (this.C !== 0 || this.E !== 0) {
             cRes.drawSprite(370, n, i1, paramGraphics);
