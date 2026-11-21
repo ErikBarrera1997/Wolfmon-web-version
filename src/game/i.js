@@ -55,6 +55,22 @@ const hNightBounds = [
   [63, 74, 30, 64, 63, 100, 30, 100, 0, 74, 0, 64, 0, 100, 0, 100]
 ];
 
+// Java class h: byte[][] a (h.java:23-39) — eight (dx,dy) pairs per facing.
+// i.java:3998 indexes this table to place the eight entity columns. The
+// decompiler reuses the name `a` for the short[][] water bounds above; using
+// hDayBounds here put every entity outside the 30x40 map (y=92,119,129) so
+// no rocks/trees/cabins could ever be drawn for the player's neighbourhood.
+const hEntityOffsets = [
+  [-2, -2, -1, -2, 0, -2, 1, -2, 2, -2, -1, -1, 0, -1, 1, -1],
+  [0, -2, 1, -2, 2, -2, 2, -1, 2, 0, 0, -1, 1, -1, 1, 0],
+  [2, -2, 2, -1, 2, 0, 2, 1, 2, 2, 1, -1, 1, 0, 1, 1],
+  [2, 0, 2, 1, 2, 2, 1, 2, 0, 2, 1, 0, 1, 1, 0, 1],
+  [2, 2, 1, 2, 0, 2, -1, 2, -2, 2, 1, 1, 0, 1, -1, 1],
+  [0, 2, -1, 2, -2, 2, -2, 1, -2, 0, 0, 1, -1, 1, -1, 0],
+  [-2, 2, -2, 1, -2, 0, -2, -1, -2, -2, -1, 1, -1, 0, -1, -1],
+  [-2, 0, -2, -1, -2, -2, -1, -2, 0, -2, -1, 0, -1, -1, 0, -1]
+];
+
 // Java class h: byte[][] b..i (h.java:41-55) — the 5x5/5x7 tile-id neighbourhood
 // tables for the four diagonal facings, used by renderSpriteOffset
 // (Java i.java:7506). Kept under the original field names so the port stays
@@ -3453,8 +3469,8 @@ isDaytime() {
         }
         let b2, b3;
         try {
-          b2 = (this.d + hDayBounds[this.h][b * 2]);
-          b3 = (this.e + hDayBounds[this.h][b * 2 + 1]);
+          b2 = (this.d + hEntityOffsets[this.h][b * 2]);
+          b3 = (this.e + hEntityOffsets[this.h][b * 2 + 1]);
         } catch(_e) { continue; }
         let j = b * 35;
         let k = 35 + b1;
@@ -3476,8 +3492,8 @@ isDaytime() {
         }
         let b2, b3;
         try {
-          b2 = (this.d + hDayBounds[this.h][b * 2]);
-          b3 = (this.e + hDayBounds[this.h][b * 2 + 1]);
+          b2 = (this.d + hEntityOffsets[this.h][b * 2]);
+          b3 = (this.e + hEntityOffsets[this.h][b * 2 + 1]);
         } catch(_e) { continue; }
         let j = (b - 5) * 58;
         let k = 58 + b1;
@@ -3498,7 +3514,10 @@ isDaytime() {
         i._drawTerrainColumn.call(this, this.d, this.e, 0, 103, 176, 66, 0, paramGraphics);
         return;
       }
-      if (paramInt === 2) i._drawTerrainColumn.call(this, this.d, this.e, 0, 103, 176, 66, 0, paramGraphics);
+      // Java 4034/4038 call the shadow a(...) for passes 0/1, but 4042 calls
+      // the entity mask b(d,e,0,103,176,66,0,g) for pass 2. Routing all three
+      // to the shadow dropped the full-height tree/ground decor column.
+      if (paramInt === 2) i._drawEntityMask.call(this, this.d, this.e, 0, 103, 176, 66, 0, paramGraphics);
     } catch(_e) {  }
   }
   
@@ -3778,14 +3797,28 @@ isDaytime() {
       try {
         i._playEntityAnim.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramByte2, paramGraphics, true);
       } catch(_e) {}
+      // Java 4283: the 66-height column also draws the dusk decor / ground
+      // sprites (i.java:4521 with paramBoolean=true).
+      try {
+        i.renderTileColumn.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramByte2, paramGraphics, true);
+      } catch(_e) {}
     }
+    // Java 4284 draws the tree/bush prefabs for every entity column. This
+    // call was missing entirely, which is why resource 9 never appeared.
     try {
-      i._drawEntityOverlay.call(this, paramInt1, paramInt2, paramInt4, paramByte1, paramByte2, paramGraphics);
+      i.renderTileColumn.call(this, paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, paramByte2, paramGraphics, false);
     } catch(_e) {}
+    // i.java:4279-4285 NO llama al overlay 266-268 aquí: esa sobrecarga
+    // (i.java:4313) sólo se invoca desde _drawTerrainColumn (i.java:4613).
+    // Llamarla desde las 8 columnas de entidades dibujaba la cabaña (266)
+    // repetida a distintas profundidades aunque la casilla no tuviera casa.
   }
   
   static _drawEntityObject(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics) {
-    let j = i._getTerrainColor.call(this, paramInt5, paramInt6, 13, 57344);
+    // Java a(byte,byte,13,57344) is readTileBits (tile CLASS), not the
+    // (_getTerrainColor) overload that takes booleans. Using the colour helper
+    // here returned 0 for every tile and made the shadow branch unreachable.
+    let j = this.tileFieldBits(paramInt5, paramInt6, 13, 57344);
     let k = 0;
     if (j !== 2 && j !== 4)
       return;
@@ -3813,8 +3846,13 @@ isDaytime() {
   static _drawEntityOverlay(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramGraphics) {
     let s1 = -1;
     let s2 = -1;
-    let j = i._getTerrainColor.call(this, paramInt4, paramInt5, 13, 57344);
-    let bool = i._getTerrainColor.call(this, paramInt4, paramInt5, 4);
+    // Java a(byte,byte,13,57344) is readTileBits (tile class). The porter's
+    // _getTerrainColor() is the boolean overload and returned 0 for every
+    // tile, so the overlay drew sprite 266 even on tiles with no building.
+    let j = this.tileFieldBits(paramInt4, paramInt5, 13, 57344);
+    // Java a(byte,byte,4) searches the entity lists for a matching type; the
+    // port has no equivalent table, so the extra sprite 357-359 stays off.
+    let bool = false;
     switch (j) {
       case 3:
         return;
@@ -4068,144 +4106,59 @@ isDaytime() {
   }
   
   static renderTileColumn(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramGraphics, paramBoolean) {
-    let j = 0;
-    let k = 0;
-    let m = 0;
-    let n = 0;
-    j = this.tileFieldBits(paramInt5, paramInt6, 0, 7);
-    if (!paramBoolean) {
-      k = this.tileFieldBits(paramInt5, paramInt6, 5, 480);
-    } else if ((k = this.tileFieldBits((paramInt5 + 1), paramInt6, 5, 480)) === -1 || k === 6) {
-      k = 0;
-    } 
-    n = this.tileFieldBits(paramInt5, paramInt6, 13, 57344);
-    let bool1 = b(paramInt5, paramInt6, 5, 0);
-    let bool2 = b(paramInt5, paramInt6, 5, 2);
+    // Java i.java:4521-4659. This is the only path that draws the tree/bush
+    // prefabs (hPrefabs 0-10, resource 9) and the small ground sprites in
+    // oVals/pVals/aTiles..hTiles (resources 57 and 385-406). The porter left
+    // bare module-scope names here (a, b, d, e, h, H) that are never bound, so
+    // the method threw and was dropped from the render. Keep Java's guards and
+    // sprite tables; the decor positions come from the entity column plus a
+    // local LCG because Java's shared visual Random `c` was never ported.
+    const j = this.tileFieldBits(paramInt5, paramInt6, 0, 7);
+    const n = this.tileFieldBits(paramInt5, paramInt6, 13, 57344);
     if (n === 2 || n === 4)
-      return; 
-    if (j === 2 || j === 5 || j === 1 || j === 4 || n === 1 || n === 0 || (paramBoolean && j !== 7 && j !== 6)) {
-      m = k * 8 * a * 3;
-    } else {
       return;
-    } 
-    if (paramBoolean && this.randomBetween(0, 100, c) < 65)
-      return; 
-    let i1 = 0;
-    let i2 = 0;
-    let i3 = (169 - H) / 11;
-    i1 = paramInt5 - d;
-    i2 = paramInt6 - e;
-    switch (h) {
-      case false:
-        i1 += 2;
-        i2 += 2;
-        m += a[i2][i1] * a * 3;
-        break;
-      case true:
-        i1 += 2;
-        i2 += 0;
-        m += b[i2][i1] * a * 3;
-        break;
-      case true:
-        i1 += 0;
-        i2 += 2;
-        m += c[i2][i1] * a * 3;
-        break;
-      case true:
-        i1 += 2;
-        i2 += 2;
-        m += d[i2][i1] * a * 3;
-        break;
-      case true:
-        i1 += 2;
-        i2 += 2;
-        m += h[i2][i1] * a * 3;
-        break;
-      case true:
-        i1 += 0;
-        i2 += 2;
-        m += e[i2][i1] * a * 3;
-        break;
-      case true:
-        i1 += 0;
-        i2 += 0;
-        m += f[i2][i1] * a * 3;
-        break;
-      case true:
-        i1 += 2;
-        i2 += 0;
-        m += g[i2][i1] * a * 3;
-        break;
-    } 
+    const walkable = (j === 2 || j === 5 || j === 1 || j === 4);
+    if (!walkable && n !== 1 && n !== 0 && !(paramBoolean && j !== 7 && j !== 6))
+      return;
+    let rState = ((paramInt5 + 91) * 374761393 + (paramInt6 + 43) * 668265263 +
+      (this.h + 17) * 2246822519 + (paramBoolean ? 3266489917 : 2654435761)) >>> 0;
+    if (rState === 0) rState = 1;
+    const rr = (lo, hi) => {
+      rState = (rState * 48271 + 1) >>> 0;
+      return lo + (rState % (hi - lo + 1));
+    };
+    // Java 4542: the dusk/full-column variant bails out 65% of the time.
+    if (paramBoolean && rr(0, 100) < 65)
+      return;
+    const band = Math.trunc((169 - this.H) / 11);
+    // Java h.f (h.java:107-109) is {10,9,...,0}; the decompiler typed its
+    // strip index as boolean, but 4601-4604 clamp a 0..10 band number.
+    const prefabs = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
     let bool = true;
-    let b = -1;
-    if (!paramBoolean && (n === 1 || n === 0 || bool1 || bool2))
-      b = 0; 
-    for (let b1 = 0; b1 < a * 3; b1 += 3) {
-      let bool3;
-      i1 = ((a[b1 + m] << 8) / 100 * paramInt3 >> 8) + paramInt1;
-      i2 = ((a[b1 + 1 + m] << 8) / 100 * paramInt4 >> 8) + paramInt2;
-      let f1 = a[b1 + 2 + m];
-      if (!paramBoolean) {
-        if ((bool3 = (i2 - H) / i3) < 0) {
-          bool3 = false;
-        } else if (bool3 > 10) {
-          bool3 = true;
-        } 
-      } else if (i2 > paramInt2 + 33) {
-        bool3 = true;
-      } else {
-        bool3 = false;
-      } 
-      if (f1 === b) {
-        if ((n === 1 || n === 0) && c === null) {
-          this._drawEntityOverlay(i1, i2, paramInt4, paramInt5, paramInt6, paramGraphics);
-        } else if (bool1) {
-          this._playEntityAnim(i1, i2, paramInt4, paramInt5, paramInt6, paramGraphics, false);
-        } else if (bool2) {
-          this._playEntityAnim(i1, i2, paramInt4, paramInt5, paramInt6, paramGraphics, true);
-        } 
-      } else if (j === 5 || j === 2 || bool || paramBoolean) {
-        if (paramBoolean && this.randomBetween(0, 100, c) < 30) {
-          if (this.randomBetween(0, 100, c) < 30) {
-            if (!bool3) {
-              c.a(i1, i2, a(b), paramGraphics);
-            } else {
-              c.a(i1, i2, a(a), paramGraphics);
-            } 
-          } else {
-            switch (j) {
-              case 0:
-                if (!bool3) {
-                  c.a(i1, i2, a(h), paramGraphics);
-                  break;
-                } 
-                c.a(i1, i2, a(g), paramGraphics);
-                break;
-              case 1:
-              case 2:
-                if (!bool3) {
-                  c.a(i1, i2, a, paramGraphics);
-                  break;
-                } 
-                c.a(i1, i2, a(e), paramGraphics);
-                break;
-              case 4:
-              case 5:
-                if (!bool3) {
-                  c.a(i1, i2, a(d), paramGraphics);
-                  break;
-                } 
-                c.a(i1, i2, a(c), paramGraphics);
-                break;
-            } 
-          } 
-        } else if (!paramBoolean && (paramInt4 !== 66 || i1 < 44 + 2 * (169 - i2) / 3 || i1 > 132 - 2 * (169 - i2) / 3) && (j === 2 || j === 5 || j === 1 || j === 4)) {
-          a(i1, i2, h.f[bool3], paramGraphics);
-        } 
-      } 
-      bool = !bool ? true : false;
-    } 
+    const count = (paramInt4 === 66) ? 3 : 1;
+    for (let b1 = 0; b1 < count; b1++) {
+      const x = paramInt1 + (paramInt3 >> 1) + rr(-3, 3);
+      const y = paramInt2 + (paramInt4 >> 1) + rr(-1, 1);
+      const strip = Math.max(0, Math.min(10, Math.trunc((y - this.H) / band)));
+      if (paramBoolean) {
+        // Java 4620-4653: oVals=407-411, pVals=412-416, then the per-type
+        // short[] pools that survived as this.aTiles..this.hTiles.
+        if (rr(0, 100) < 30) {
+          const pool = (rr(0, 100) < 50) ? this.oVals : this.pVals;
+          cRes.drawSprite(pool[rr(0, pool.length - 1)], x, y, paramGraphics);
+        } else {
+          const pools = [this.hTiles, this.gTiles, this.fTiles, this.eTiles, this.dTiles, this.cTiles];
+          const pool = pools[j] || this.aTiles;
+          cRes.drawSprite(pool[rr(0, pool.length - 1)], x, y, paramGraphics);
+        }
+      } else if (walkable && (j === 5 || j === 2 || bool) &&
+          (paramInt4 !== 66 || x < 44 + 2 * (169 - y) / 3 || x > 132 - 2 * (169 - y) / 3)) {
+        // Java 4655: a(i1, i2, h.f[strip], g) is drawSpriteLayer, which lays
+        // out the whole (dx,dy, sprite) prefab — no overlay 266-268 here.
+        this.drawHouseLayer(x, y, prefabs[strip], paramGraphics);
+      }
+      bool = !bool;
+    }
   }
   
   static _randomArrayEl(paramArrayOfshort) {

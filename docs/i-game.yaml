@@ -145,9 +145,9 @@ render_pipeline:
       clipping: "i._drawEntityClip(...)"
       house_trees: "i._drawEntityHouse(...)"
       carpet: "i._paintTerrainTexture(...) / i._fillTerrainBg(...)"
-      mask_object_overlay: "i._drawEntityMask(...)"
+      mask: "i._drawEntityMask(...)"
       object_shadow: "i._drawEntityObject(...)"
-      overlay: "i._drawEntityOverlay(...)"
+      overlay: "i._drawEntityOverlay(...) — only from _drawTerrainColumn"
       animation: "i._playEntityAnim(...)"
   interface:
     methods:
@@ -207,7 +207,7 @@ java_to_javascript:
       purpose: "Entity drawing clipped to bands."
     - java: "b(byte, byte, int, int, int, int, int, Graphics)"
       javascript: "_drawEntityMask(...)"
-      purpose: "House/tree sprites 262-265, object, animation, and overlay."
+      purpose: "Sprites 262-265 (rock/tree bases and night variants), object and animation; no overlay in this route."
     - java: "b(int, int, int, int, Graphics)"
       javascript: "_paintTerrainTexture(...) / _fillTerrainBg(...)"
       purpose: "Tiles sprite 269 into narrow strips beside the entity columns."
@@ -216,7 +216,7 @@ java_to_javascript:
       purpose: "Draw the object/shadow associated with an entity."
     - java: "a(int, int, int, int, int, Graphics)"
       javascript: "_drawEntityOverlay(...)"
-      purpose: "Entity overlay; the Java overload is identified by its body."
+      purpose: "Overlay 266-268/357-359; Java calls it only from _drawTerrainColumn (i.java:4613)."
     - java: "a(int, int, int, int, int, Graphics, boolean)"
       javascript: "_playEntityAnim(...)"
       purpose: "Special animation selection."
@@ -320,24 +320,29 @@ known_port_differences:
     impact: "Special animations and drawing associated with renderRegion may not appear."
   - id: "entity-overlay-arguments"
     severity: "render"
-    status: "resolved"
+    status: "superseded"
     javascript: >
-      _drawEntityMask() previously called _drawEntityOverlay() with
-      (paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, g), putting the
-      rectangle width where the helper reads the size and the literal 7 where
-      it reads the tile X, and omitting the tile Y. It now passes
-      (paramInt1, paramInt2, paramInt4, paramByte1, paramByte2, g), matching
-      the helper's (x, y, size, tileX, tileY, g) signature.
+      _drawEntityMask() used to call _drawEntityOverlay() with the wrong
+      arguments: (paramInt1, paramInt2, paramInt3, paramInt4, paramByte1, g)
+      put the rectangle width where the helper reads the size, the literal 7
+      where it reads the tile X, and omitted the tile Y. The call was corrected
+      to (paramInt1, paramInt2, paramInt4, paramByte1, paramByte2, g), matching
+      the (x, y, size, tileX, tileY, g) signature. That made the call execute,
+      which exposed a larger fidelity problem: Java's mask (i.java:4279-4285)
+      never calls the overlay overload (i.java:4313). See
+      horizon-cabin-overlay-2026_11_21: the call was removed from the mask and
+      only the legitimate _drawTerrainColumn route (i.java:4613) remains.
     impact: >
-      Fixed. Runtime instrumentation confirmed that owner 18 tree sprites
-      (266-268 / 357-359) are now drawn during a normal paint; before the fix
-      the overlay produced zero draws.
+      The argument fix alone was wrong: it made a cabin (sprite 266) appear at
+      several entity depths even when the tile had no house. After removing
+      the call, resource 18 (266-268) no longer appears in entity-mask draws;
+      the overlay is still reachable from terrain columns as in Java.
   - id: "entity-house-sprites"
     severity: "render"
     status: "resolved"
     java: >
       b(byte,byte,...) at i.java:4279-4285 calls b(...) at i.java:4666-4687
-      first, which draws sprites 262-265 (houses/trees) for tiles of type 6.
+      first, which draws sprites 262-265 (base variants) for tiles of type 6.
     javascript: >
       _drawEntityMask() called _drawEntityClip() in that slot, so owner 17 had
       zero draws. It now calls _drawEntityHouse() with the same seven arguments
@@ -438,6 +443,93 @@ known_port_differences:
     impact: >
       The dusk/dawn horizon sprites (360-374) now select on integer z/90 buckets
       exactly like Java, without forcing sprite IDs or changing the clock.
+  - id: "horizon-cabin-overlay-2026_11_21"
+    severity: "render"
+    status: "resolved"
+    java: >
+      b(byte,byte,...) at i.java:4279-4285 draws sprites 262-265 (house/rock
+      bases), the black shadow at 4287, then 4521 twice. It never calls the
+      overlay overload a(int,int,int,int,int,Graphics) at i.java:4313. Java
+      calls that overlay only from the terrain-column path at i.java:4613,
+      where the tile class gating already decides whether a building belongs
+      there. The atlas shows sprite 266 as a cabin (triangular roof and door);
+      262/263 are rock/blob bases.
+    javascript: >
+      _drawEntityMask() had an extra i._drawEntityOverlay.call(...) that drew
+      the cabin from all eight entity columns (five near, three far). Because
+      the entity columns are screen-space, the same cabin appeared at several
+      distances as the player approached, even for tiles with no house. The
+      call was removed; _drawEntityOverlay() remains called only from
+      _drawTerrainColumnInner() (i.js:4162). _drawEntityHouse() still uses a
+      tile-and-heading-seeded local LCG, so it does not consume this.a, and the
+      hour only selects the night variants 264/265 as in Java.
+    impact: >
+      Node render probe: resource 18 (sprites 266-268) went from 8 draws in
+      entity-mask pass 2 to zero, while resource 16 (panorama 235-243) stays at
+      8 draws from terrain columns and sprites 360-374 are unchanged. No clock,
+      movement, HUD or log changes; the only console.log in i.js remains the
+      [mapa] sprite-move line.
+  - id: "entity-offsets-table-2026_11_21"
+    severity: "render"
+    status: "resolved"
+    java: >
+      i.java:3998 builds the eight entity columns with
+      (byte)(d + h.a[h][b*2]) / (byte)(e + h.a[h][b*2+1]). That h.a is the
+      byte[][] at h.java:23-39: eight rows of sixteen small offsets (-2..2),
+      one (dx,dy) pair per entity. The decompiler reuses the name `a` for the
+      short[][] water bounds at h.java:61-79, which are unrelated.
+    javascript: >
+      _renderEntitiesInner() used hDayBounds (the water table) for entity
+      placement. At spawn (13,29) facing 0 that produced tiles (48,92),
+      (22,119), (48,129) ... — all outside the 30x40 map, so tileFieldBits()
+      returned -1/6 and no rock/tree/cabin could ever be drawn around the
+      player. Added hEntityOffsets with the real byte[][] values and switched
+      both the five near-column and three far-column loops to it; hDayBounds
+      stays where it belongs (water quads and terrain gradients).
+      _drawEntityOverlay() and _drawEntityObject() also called the boolean
+      _getTerrainColor() overload with (tileX,tileY,13,57344), so every tile
+      looked like class 0 and sprite 266 was drawn unconditionally. They now
+      use tileFieldBits(x,y,13,57344). The Java a(x,y,4) entity-list lookup
+      has no port equivalent, so its bonus sprite stays off.
+    impact: >
+      Node sweep: resource 17 (262-265) is back — 2 draws at spawn (3,3) with
+      type-6 tiles, 1 at (3,4), (3,5) and (3,15) — while resource 18 (266-268)
+      stays at 0, panorama 16 remains at 8 draws and 360-374 are unchanged.
+      No clock, movement, HUD or log changes; `node --check` and npm test
+      (33/33) pass.
+  - id: "tree-bush-decor-column-2026_11_21"
+    severity: "render"
+    status: "resolved"
+    java: >
+      i.java:4279-4285 (the entity mask) calls 4521 with paramBoolean=false at
+      4284 for every entity column, and with true at 4283 when the column is
+      66px tall. 4521-4659 is the only path that draws the tree/bush prefabs
+      via drawSpriteLayer(i1,i2,h.f[strip],g) at 4655 (h.f = {10..0},
+      h.java:107-109), plus the small ground sprites o/p/aTiles..hTiles at
+      4620-4653. i.java:4042 also routes the player's own full-height column
+      through the mask b(d,e,0,103,176,66,0,g), not the shadow a(...).
+      The decompiler typed the strip index at 4601-4604 as a boolean, but it
+      is a clamped 0..10 band number ((i2-H)/((169-H)/11)).
+    javascript: >
+      renderTileColumn() had bare module-scope names (a,b,d,e,h,H) that are
+      never bound, so it always threw; _drawEntityMask() never called it and
+      _renderEntitiesInner() sent pass 2 to _drawTerrainColumn() (the shadow)
+      instead of the mask. Rewrote renderTileColumn() with this.tileFieldBits,
+      this.drawHouseLayer, the h.f prefab pick and a tile-seeded local LCG
+      (Java's shared visual Random `c` is not ported), keeping Java's guards,
+      the 65% dusk bail-out, the per-type sprite pools and the 66px centre
+      exclusion. Wired both paramBoolean variants into _drawEntityMask() and
+      changed the pass-2 call to _drawEntityMask(d,e,0,103,176,66,0,g).
+      The house overlay 266-268 is still NOT called from this path, so the
+      false-cabin fix stays intact.
+    impact: >
+      Node sweep over 8 headings x 35 positions: resource 9 (sprites 106-143)
+      now draws in 258/280 frames (0 before); resource 57 appears in the
+      ground/decor pass, resource 17 rocks and panorama 16 are unchanged,
+      resource 18 stays at 0 and sprites 360-374 are untouched. Spawn
+      (13,29) facing 0 is a clearing (tile type 3) and correctly shows no
+      tree; facing 5 shows 6 tree draws. `node --check` and npm test (33/33)
+      pass; the only console.log in i.js remains the [mapa] line.
   - id: "graphics-3arg-setColor"
     severity: "render"
     status: "resolved"
