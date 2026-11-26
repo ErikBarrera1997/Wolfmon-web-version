@@ -16,6 +16,7 @@ const clipRectTemp = new Int32Array(4);
 let _dbgDraw = 0;
 const _missRows = new Map();
 const _missImgs = new Map();
+
 function dbgDrawEnabled() {
   const v = globalThis.__WM_DEBUG_DRAW;
   return v === undefined ? false : !!v;
@@ -339,6 +340,16 @@ function clipRect(g, x, y, w, h, out) {
   return false;
 }
 
+// Captura de la frame actual: sólo se registran los sprites que superan el
+// clip y llegan a drawImage, no los que se descartan por falta de fila/imagen.
+let _frameSprites = null;
+export function startSpriteCapture() { _frameSprites = []; }
+export function endSpriteCapture() {
+  const drawn = _frameSprites || [];
+  _frameSprites = null;
+  return drawn;
+}
+
 export function drawSprite(spriteId, x, y, g) {
   const row = spriteRows[spriteId];
   if (row == null) {
@@ -354,6 +365,7 @@ export function drawSprite(spriteId, x, y, g) {
   }
   dbgDraw('sprite', { id: spriteId, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, ox: row[0], oy: row[1], w: row[2], h: row[3], ax: row[4], ay: row[5], res: row[6] });
   if (clipRect(g, x - row[4], y - row[5], row[2], row[3], clipRectTemp)) {
+    if (_frameSprites) _frameSprites.push({ id: spriteId, x, y });
     g.drawImage(image, x - row[4] - row[0], y - row[5] - row[1], 20);
     g.setClip(clipRectTemp[0], clipRectTemp[1], clipRectTemp[2], clipRectTemp[3]);
   }

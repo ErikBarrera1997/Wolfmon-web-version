@@ -133,6 +133,37 @@ const hColorThresholds = [
   [2504023, 12636653, 12817489, 15770183, 10531279, 13737876, 14109207, 9183513]
 ];
 
+// Nombres para el log de sprites dibujados. Los IDs salieron de inspeccionar
+// el atlas y los call sites de i.java/i.js: 360-373 son árboles del horizonte,
+// 374 el astro, 262-265 la montaña/roca, 235-243 las piezas de la cabaña,
+// 159/174/189/204 las bases de suelo y 385-416 la decoración.
+const spriteRange = (lo, hi) => Array.from({ length: hi - lo + 1 }, (_k, n) => lo + n);
+const spriteLabels = [
+  ['luna', [374]],
+  ['arbol_dia', spriteRange(360, 366)],
+  ['arbol_noche', spriteRange(367, 373)],
+  ['montaña', spriteRange(262, 265)],
+  ['cabaña', spriteRange(235, 243)],
+  ['carpa', [269]],
+  ['suelo_olivo', spriteRange(159, 161)],
+  ['pasto', spriteRange(174, 176)],
+  ['tierra_cafe', spriteRange(189, 191)],
+  ['tierra_amarilla', spriteRange(204, 206)],
+  ['matorral', spriteRange(385, 406)],
+  ['maleza', spriteRange(407, 416)],
+  ['hud', [0, ...spriteRange(85, 104), ...spriteRange(207, 234)]]
+];
+const spriteNameById = new Map();
+for (const [label, ids] of spriteLabels) {
+  for (const id of ids) spriteNameById.set(id, label);
+}
+const spriteGroupByLabel = {
+  luna: 'horizonte', arbol_dia: 'horizonte', arbol_noche: 'horizonte',
+  montaña: 'entidades', cabaña: 'entidades',
+  suelo_olivo: 'suelo', pasto: 'suelo', tierra_cafe: 'suelo', tierra_amarilla: 'suelo',
+  carpa: 'decor', matorral: 'decor', maleza: 'decor', hud: 'hud'
+};
+
 
 export class i extends Screen {
   u = new Int16Array(130);
@@ -530,12 +561,18 @@ export class i extends Screen {
     this.tableA = Array.from({ length: 9 }, () => []);
     this.arrD = new Int32Array(9);
     this.arrE = new Int32Array(9);
-    // Comparación de sprites de terreno (árboles, maleza, etc.) entre pasos.
-    this._mapSpriteSnapshot = new Set();
-    this._mapSpritePending = null;
   }
 
   paintScreen(g) {
+    // tileFieldBits() lee this.s. h.js publica el grid desde loadTileData()
+    // al cargar el mundo, pero si el primer paint llega antes (o esa carga
+    // terminó sin publicar el alias) el primer _drawEntityClip lanza y el
+    // catch de stage() descarta las ocho columnas: sólo queda la banda verde.
+    // Reintentar aquí, antes de dibujar, hace que el render tenga siempre el
+    // mapa disponible sin tocar el reloj ni añadir logs.
+    if (this.s == null) {
+      try { this.loadTileData(); } catch (_e) {}
+    }
     try {
       g.setClip(0, 0, 176, 208);
       g.setColor(0x000000);
@@ -1173,8 +1210,6 @@ isDaytime() {
           return;
         }
         if ((b2 !== this.d || b3 !== this.e) && this.canUseCurrentItemStub(b2, b3)) {
-          const fromX = this.d;
-          const fromY = this.e;
           this.hero.d();
           if (this.A !== 0 && this.readTileBits(b2, b3, 0, 7) !== 7) {
             for (let i = 0; i < this.aCam.g; i++) {
@@ -1196,7 +1231,6 @@ isDaytime() {
               this.g = this.e;
               this.d = b2;
               this.e = b3;
-              i._markMapSpriteMove.call(this, fromX, fromY, b2, b3);
               this.updateWeatherParticles(1);
               this.stepX[this.S] = this.d;
               this.stepY[this.S] = this.e;
@@ -1215,7 +1249,6 @@ isDaytime() {
             this.g = this.e;
             this.d = b2;
             this.e = b3;
-            i._markMapSpriteMove.call(this, fromX, fromY, b2, b3);
             this.updateWeatherParticles(1);
             if (this.J === 0 && this.m === -1) {
               this.J = 1;
@@ -1352,40 +1385,6 @@ isDaytime() {
         this.bCam[i] = false;
       }
     }
-  }
-
-  // Un paso completado abre una ventana de captura: los sprites de terreno se
-  // generan durante el render, no en updateEntities(), así que se comparan al
-  // cerrar _renderAll() y se emite un único log por movimiento.
-  static _markMapSpriteMove(fromX, fromY, toX, toY) {
-    this._mapSpritePending = {
-      fromX, fromY, toX, toY,
-      tileType: i.readTileBits.call(this, toX, toY, 0, 7),
-      sprites: new Set()
-    };
-  }
-
-  static _flushMapSpriteMove() {
-    const pending = this._mapSpritePending;
-    if (!pending) return;
-    if (this.d !== pending.toX || this.e !== pending.toY) {
-      this._mapSpritePending = null;
-      return;
-    }
-    const antes = this._mapSpriteSnapshot || new Set();
-    const ahora = pending.sprites;
-    const orden = (a, b) => a - b;
-    const entraron = [...ahora].filter((id) => !antes.has(id)).sort(orden);
-    const salieron = [...antes].filter((id) => !ahora.has(id)).sort(orden);
-    const cambiaron = [
-      ...entraron.map((id) => '+' + id),
-      ...salieron.map((id) => '-' + id)
-    ].join(',') || 'ninguno';
-    console.log('[mapa] sprite del mapa se movió | cambiaron=' + cambiaron +
-      ' | casilla=(' + pending.toX + ',' + pending.toY + ') tipo=' + pending.tileType +
-      ' | desde=(' + pending.fromX + ',' + pending.fromY + ')');
-    this._mapSpriteSnapshot = new Set(ahora);
-    this._mapSpritePending = null;
   }
 
   static itemFrameId(paramInt) {
@@ -2526,6 +2525,7 @@ isDaytime() {
     // i.java:2518-2540 resetea u/v/e y el contador a al empezar cada frame.
     // d[] (el flag de visibilidad) NO se resetea: el tick de M>300 lo alterna.
     this.tuftCount = 0;
+    cRes.startSpriteCapture();
     // Cada etapa se pinta en su propio clip para que un fillRect/gradient de
     // una etapa no termine borrando lo que dibujaron las anteriores.
     const clip = [paramGraphics.getClipX(), paramGraphics.getClipY(),
@@ -2546,10 +2546,41 @@ isDaytime() {
     stage(i._renderEntities, 2, paramGraphics);
     stage(i._paintTerrainTexture, paramGraphics);
     stage(i._renderMinimap, paramGraphics);
-    if (!paramBoolean) return;
-    stage(i._renderUI, paramGraphics);
+    if (paramBoolean) stage(i._renderUI, paramGraphics);
     paramGraphics.setClip(clip[0], clip[1], clip[2], clip[3]);
-    i._flushMapSpriteMove.call(this);
+    i._logDrawnSprites.call(this);
+  }
+
+  // La captura la hace cRes.drawSprite(): sólo se anota un sprite si pasa el
+  // clip y llega a drawImage, así que el log refleja lo que realmente se ve,
+  // no los IDs que sólo se pidieron y se descartaron. Una sola línea por frame.
+  static _logDrawnSprites() {
+    const drawn = cRes.endSpriteCapture();
+    const byLabel = new Map();
+    const all = new Set();
+    for (const entry of drawn) {
+      const id = entry.id;
+      const label = spriteNameById.get(id) || ('id' + id);
+      if (!byLabel.has(label)) byLabel.set(label, new Set());
+      byLabel.get(label).add(id);
+      all.add(id);
+    }
+    const groups = new Map();
+    for (const [label, ids] of byLabel) {
+      const group = spriteGroupByLabel[label] || 'otros';
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(label + '=' + [...ids].sort((a, b) => a - b).join(','));
+    }
+    const parts = [];
+    for (const group of ['horizonte', 'suelo']) {
+      parts.push(group + '[' + (groups.get(group) || []).sort().join(' ') + ']');
+    }
+    for (const group of ['entidades', 'decor', 'hud', 'otros']) {
+      const entries = groups.get(group);
+      if (entries) parts.push(group + '[' + entries.sort().join(' ') + ']');
+    }
+    console.log('[sprites] ' + parts.join(' ') + ' | todos=' +
+      (all.size ? [...all].sort((a, b) => a - b).join(',') : 'ninguno'));
   }
 
   static _scatterCurrentTufts() {
@@ -3506,12 +3537,9 @@ isDaytime() {
           i._drawEntityMask.call(this, b2, b3, j, 83, k, 20, m, paramGraphics);
         }
       }
-      if (paramInt === 1) {
-        i._drawTerrainColumn.call(this, this.d, this.e, 0, 103, 176, 66, 0, paramGraphics);
-        return;
-      }
-      if (paramInt === 0) {
-        i._drawTerrainColumn.call(this, this.d, this.e, 0, 103, 176, 66, 0, paramGraphics);
+      if (paramInt === 1 || paramInt === 0) {
+        // El suelo por casilla visible ya lo dibuja _paintGroundBands() en
+        // toda la banda H..169; repetirlo aquí sólo duplicaba los sprites.
         return;
       }
       // Java 4034/4038 call the shadow a(...) for passes 0/1, but 4042 calls
@@ -3529,9 +3557,13 @@ isDaytime() {
   }
 
   static _paintGroundBands(paramGraphics) {
-    // i.java:4045-4052 (c(Graphics)) pinta el suelo del horizonte justo después
-    // del cielo y antes de las columnas de terreno. J = I*40/100 = 37 con
-    // I = 169-H = 93, así que las dos bandas cubren H..H+J y H+J..169.
+    // i.java:4045-4052 (c(Graphics)) rellena H..169 con dos degradados planos.
+    // Se conserva ese relleno como fondo: los sprites de suelo no tiledan
+    // perfecto (anchos 11/12/13, saltos aleatorios) y sin fondo se veía el
+    // negro del canvas en los huecos. Encima se tesela con las mismas bases
+    // 159/174/189/204 y hGroundProb que _drawTerrainColumnInner para que la
+    // zona amarilla/café del minimapa muestre sprites reales. El agua se
+    // dibuja después desde _drawEntityClip, por lo que sigue tapando ambos.
     try {
       const J = Math.floor(this.skyBand * 40 / 100);
       const upperNear = this._getTerrainColor(0, true, true);
@@ -3545,6 +3577,28 @@ isDaytime() {
         0, this.H + J, 0, 169, 176, this.H + J, 176, 169,
         paramGraphics, 0, false);
     } catch (_e) {}
+    const clipX = paramGraphics.getClipX();
+    const clipY = paramGraphics.getClipY();
+    const clipW = paramGraphics.getClipWidth();
+    const clipH = paramGraphics.getClipHeight();
+    const fanX = [-2, -1, 0, 1, 2];
+    const fanY = [-1, -1, 0, -1, -1];
+    try {
+      paramGraphics.setClip(0, this.H, 176, 169 - this.H);
+      for (let b = 0; b < 5; b++) {
+        const x = b * 35;
+        const w = (b === 4) ? (176 - x) : 35;
+        let tx = this.d + fanX[b];
+        let ty = this.e + fanY[b];
+        if (tx < 0) tx = 0;
+        else if (this.mapW && tx >= this.mapW) tx = this.mapW - 1;
+        if (ty < 0) ty = 0;
+        else if (this.mapH && ty >= this.mapH) ty = this.mapH - 1;
+        i._drawTerrainColumn.call(this, tx, ty, x, this.H, w, 169 - this.H, 0, paramGraphics);
+      }
+    } catch (_e) {} finally {
+      paramGraphics.setClip(clipX, clipY, clipW, clipH);
+    }
   }
 
   static _renderTerrainInner(paramGraphics) {
@@ -3750,6 +3804,12 @@ isDaytime() {
     let m = paramInt4;
     let n = paramInt2;
     let bool2;
+    // i.java:4253-4274 recorta en H+J, con J = I*40/100 = 37 (i.java:7016).
+    // Usar H+skyBand (169) dejaba el corte al final del suelo en vez de en el
+    // límite de la banda alta, así que el tramo de agua que cruza esa línea
+    // nunca se partía en las dos franjas del Java.
+    const J = Math.trunc(this.skyBand * 40 / 100);
+    const boundary = this.H + J;
     if (paramByte1 >= 0 && paramByte1 < this.mapW && paramByte2 >= 0 && paramByte2 < this.mapH) {
       bool2 = this.tileFieldBits(paramByte1, paramByte2, 0, 7);
     } else {
@@ -3757,28 +3817,29 @@ isDaytime() {
     }
     if (bool2 === 7) {
       b1 = 1;
-    if (paramInt2 < this.H + this.skyBand && paramInt2 + paramInt4 > this.H + this.skyBand)
+    if (paramInt2 < boundary && paramInt2 + paramInt4 > boundary)
       b1 = 2;
     }
     for (let b2 = 0; b2 < b1; b2++) {
-      if (paramInt2 < this.H + this.skyBand) {
+      if (paramInt2 < boundary) {
         bool1 = true;
       } else {
         bool1 = false;
       }
       if (b1 === 2)
         if (bool1) {
-          paramInt4 = this.H + this.skyBand - paramInt2;
+          paramInt4 = boundary - paramInt2;
         } else {
-          paramInt4 = paramInt2 + m - this.H + this.skyBand;
+          // Java 4266: paramInt2 + m - H + J (no es -(H+J)).
+          paramInt4 = paramInt2 + m - this.H + J;
         }
       j = this.tileFieldBits(paramByte1, paramByte2, bool1, true);
       k = this.tileFieldBits(paramByte1, paramByte2, bool1, false);
       if (bool1) {
-        this.renderCell20(paramInt4, this.H, this.H + this.skyBand, j, k, paramInt1, paramInt2, paramInt1, paramInt2 + m, paramInt1 + paramInt3, paramInt2, paramInt1 + paramInt3, paramInt2 + m, paramGraphics, paramByte1, paramByte2, paramInt5, paramInt3, m, 0);
-        paramInt2 = this.H + this.skyBand;
+        this.renderCell20(paramInt4, this.H, boundary, j, k, paramInt1, paramInt2, paramInt1, paramInt2 + m, paramInt1 + paramInt3, paramInt2, paramInt1 + paramInt3, paramInt2 + m, paramGraphics, paramByte1, paramByte2, paramInt5, paramInt3, m, 0);
+        paramInt2 = boundary;
       } else {
-        this.renderCell20(paramInt4, this.H + this.skyBand, 169, j, k, paramInt1, n, paramInt1, n + m, paramInt1 + paramInt3, n, paramInt1 + paramInt3, n + m, paramGraphics, paramByte1, paramByte2, paramInt5, paramInt3, m, this.H + this.skyBand - n);
+        this.renderCell20(paramInt4, boundary, 169, j, k, paramInt1, n, paramInt1, n + m, paramInt1 + paramInt3, n, paramInt1 + paramInt3, n + m, paramGraphics, paramByte1, paramByte2, paramInt5, paramInt3, m, boundary - n);
       }
     }
   }
@@ -3965,10 +4026,6 @@ isDaytime() {
 
   static _drawTerrainColumnInner(paramInt1, paramInt2, paramInt3, paramInt4, paramInt5, paramInt6, paramInt7, paramGraphics) {
     if (typeof paramInt1 !== 'number' || typeof paramInt2 !== 'number') return;
-    const trackMapSprite = (id) => {
-      const pending = this._mapSpritePending;
-      if (pending && paramInt1 === pending.toX && paramInt2 === pending.toY) pending.sprites.add(id);
-    };
     let rState = ((paramInt1 + 91) * 374761393 + (paramInt2 + 43) * 668265263 + (paramInt3 + 17) * 2246822519 + paramInt7 * 3266489917) >>> 0;
     if (rState === 0) rState = 1;
     const rr = (lo, hi) => {
@@ -4060,7 +4117,6 @@ isDaytime() {
           b1 = 0;
         } 
         if (i3 !== 7 || j < i11 || j > i12) {
-          trackMapSprite(n);
           try {
             const _jx = rr(-b1, b1);
             const _jy = rr(-b1, b1);
@@ -4069,11 +4125,9 @@ isDaytime() {
         }
         if (j === paramInt3 + paramInt5) {
           if (i11 !== -1) {
-            trackMapSprite(n);
             try { cRes.drawSprite(n, i11, k, paramGraphics); } catch(_e) {}
           }
           if (i12 !== 666) {
-            trackMapSprite(n);
             try { cRes.drawSprite(n, i12, k, paramGraphics); } catch(_e) {}
           }
           if (k === paramInt4 + paramInt6)
@@ -6822,9 +6876,20 @@ isDaytime() {
     let i11 = (paramInt5 & 0xFF0000) >> 16;
     let i12 = (paramInt5 & 0xFF00) >> 8;
     let i13 = paramInt5 & 0xFF;
-    let i14 = -((i8 - i11 << 8) / i6);
-    let i15 = -((i9 - i12 << 8) / i6);
-    let i16 = -((i10 - i13 << 8) / i6);
+    // Java trunca estas divisiones int/int; en JS los deltas quedaban
+    // fraccionarios y el degradado no coincidía con el de i.java:7315-7317.
+    let i14 = -Math.trunc((i8 - i11 << 8) / i6);
+    let i15 = -Math.trunc((i9 - i12 << 8) / i6);
+    let i16 = -Math.trunc((i10 - i13 << 8) / i6);
+    // El Random visual `b` de Java no está porteado. Se usa un LCG local
+    // sembrado por la franja para no consumir el Random de juego this.a.
+    let rState = ((paramInt1 + 17) * 374761393 + (paramInt2 + 43) * 668265263 +
+      (paramInt3 + 91) * 1274126177 + (this.h + 7) * 2246822519) >>> 0;
+    if (rState === 0) rState = 1;
+    const rr = (lo, hi) => {
+      rState = (rState * 48271 + 1) >>> 0;
+      return lo + (rState % (hi - lo + 1));
+    };
     if (i1 < 0) {
       i1 = -i1;
       b2 = -1;
@@ -6884,17 +6949,20 @@ isDaytime() {
         } 
         bool3 = false;
         bool4 = false;
-        if (paramInt2 === this.H * 70 / 100) {
-          let i22 = i19;
-          let i23 = i20;
-          let i24 = i21;
-          try { for (let b = 0; b < 4; b++) {
+        // i.java:7377-7404: H*70/100 es división entera (53 con H=76). El puerto
+        // comparaba contra 53.2 y nunca entraba; además usaba extremos iguales
+        // para b=1..3, así que esas tres líneas tenían longitud cero.
+        if (paramInt2 === Math.trunc(this.H * 70 / 100)) {
+          const i22 = i19;
+          const i23 = i20;
+          const i24 = i21;
+          for (let b = 0; b < 4; b++) {
             let i25;
             let i26;
-            let i27 = 95 + (b * 3);
-            i19 = i19 * i27 / 100;
-            i20 = i20 * i27 / 100;
-            i21 = i21 * i27 / 100;
+            const i27 = rr(95, 105);
+            i19 = Math.trunc(i19 * i27 / 100);
+            i20 = Math.trunc(i20 * i27 / 100);
+            i21 = Math.trunc(i21 * i27 / 100);
             i19 = i19 < 0 ? 0 : (i19 > 255 ? 255 : i19);
             i20 = i20 < 0 ? 0 : (i20 > 255 ? 255 : i20);
             i21 = i21 < 0 ? 0 : (i21 > 255 ? 255 : i21);
@@ -6902,32 +6970,34 @@ isDaytime() {
               i25 = paramInt6;
               i26 = paramInt10;
             } else {
-              i25 = paramInt6 + ((paramInt10 - paramInt6) * b / 4);
-              i26 = paramInt6 + ((paramInt10 - paramInt6) * b / 4);
+              i25 = rr(paramInt6, paramInt10);
+              i26 = rr(paramInt6, paramInt10);
             } 
             paramGraphics.setColor(i19, i20, i21);
             paramGraphics.drawLine(i25, paramInt7, i26, paramInt11);
             i19 = i22;
             i20 = i23;
             i21 = i24;
-          } } catch(_e) {}
+          } 
         } 
-        try {
-        if (this.h.a !== null && paramBoolean && paramInt14 <= 0) {
+        // Java comprueba el centinela estático h.a (nunca null). Aquí this.h es
+        // el rumbo numérico, así que esa lectura lanzaba y la rama quedaba
+        // desactivada; se usa el mismo estado que en renderTileColumn16().
+        if (this.tuftEnabled && paramBoolean && paramInt14 <= 0) {
           i19 -= i19 >> 2;
           i20 -= i20 >> 2;
           i21 -= i21 >> 2;
           i19 = i19 < 0 ? 0 : (i19 > 255 ? 255 : i19);
           i20 = i20 < 0 ? 0 : (i20 > 255 ? 255 : i20);
           i21 = i21 < 0 ? 0 : (i21 > 255 ? 255 : i21);
-          let i22 = ((i22 = paramInt7 - this.H + (paramInt7 - this.H >> 1)) + 0) / 5;
+          const lateral = paramInt7 - this.H + (paramInt7 - this.H >> 1);
+          const i22 = Math.trunc((lateral + rr(0, Math.max(0, lateral >> 3))) / 5);
           paramGraphics.setColor(i19, i20, i21);
           if (j !== k)
             paramGraphics.drawLine(paramInt6, paramInt7, paramInt6 + i22, paramInt11); 
           if (m !== n)
             paramGraphics.drawLine(paramInt10 - i22, paramInt7, paramInt10, paramInt11); 
-        }
-        } catch(_e) {} 
+        } 
         if (--paramInt1 <= 0)
           return; 
       } 

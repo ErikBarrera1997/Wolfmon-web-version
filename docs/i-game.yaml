@@ -297,18 +297,44 @@ world_and_gameplay_areas:
 
 known_port_differences:
   - id: "sky-boundary"
-    severity: "visual-conditional"
-    status: "divergence-visible-in-source"
+    severity: "render"
+    status: "resolved"
     java: >
       The decompiled Java initializer documents I=93 and J=I*40/100=37.
       The clipping code and the two bands use H+J; with H=76, the resulting
       limit is 113 and the sky bands extend to y=169.
     javascript: >
       resetGameState() sets H=76 and skyBand=169-H=93. _drawEntityClip()
-      uses H+skyBand=169 as the clipping boundary.
+      used H+skyBand=169 as the clipping boundary, so an entity strip crossing
+      y=113 was never split into the H..H+J and H+J..169 bands and its water
+      gradient stayed in the wrong band. Now J = trunc(skyBand*40/100) = 37
+      and every clip call uses boundary = H+J = 113, as in i.java:4253-4274.
     impact: >
-      These expressions are not equivalent. The effect depends on an entity
-      crossing that boundary; do not assume the port preserves Java's geometry.
+      Node probes keep the same 4 water clips at spawn (13,29) and the same
+      26 blue lines at y=76..82, but their gradient now spans the Java 37px
+      band instead of 93px. Sky, trees, rocks, panorama and the clock are
+      untouched; node --check and npm test (33/33) pass.
+  - id: "water-grid-published-before-first-paint-2026_11_21"
+    severity: "render"
+    status: "resolved"
+    javascript: >
+      tileFieldBits() reads the tile grid from this.s. h.js publishes that grid
+      by calling gameScreen.loadTileData() inside loadGameWorldResources(), but
+      the first paint can reach paintScreen() before that alias exists (or after
+      a load that returned without publishing it). _drawEntityClip() then threw
+      on the very first tile lookup; stage()/the outer catch swallowed it, so
+      all eight entity columns were skipped and only the olive ground band
+      from _paintGroundBands() remained visible. paintScreen() now retries
+      loadTileData() when this.s is null before calling _paintEntry. Also
+      corrected the split-clip width at i.js:3778: Java 4266 computes
+      paramInt2 + m - H + J, not paramInt2 + m - (H+J).
+    impact: >
+      Node probe with a real `new i()` and no manual loadTileData() went from
+      0 blue pixels to 350 at y=76..82 after paintScreen(); this.s becomes the
+      1200-cell grid. Resource probes are unchanged (res9 0 at spawn facing 0
+      and 6 facing 5, res17 2 at (3,3), res18 0, panorama 16 at 8, sprites
+      360-374 untouched), the only console.log in i.js is still [mapa], and
+      node --check plus npm test (33/33) pass.
   - id: "animation-helper-reference"
     severity: "render"
     status: "confirmed-in-source"
@@ -553,7 +579,7 @@ known_port_differences:
     impact: "Color threshold selection may not follow the in-game time."
   - id: "duplicate-gradient-ports"
     severity: "render"
-    status: "confirmed-divergence"
+    status: "superseded-by-horizon-gradient-variation-2026_11_21"
     javascript:
       terrain_helper: >
         _drawTileGradient() compares paramInt2 with H*70/100 using JavaScript
@@ -565,8 +591,34 @@ known_port_differences:
         renderTileColumn16() applies integer coercions to emulate Java integer
         division and uses randomBetween() for variation.
     impact: >
-      These are parallel implementations of the gradient with different
-      behavior; do not assume both preserve the Java routine's result.
+      These were parallel implementations of the gradient with different
+      behavior. The floating-point comparison and zero-length variation lines
+      are fixed in horizon-gradient-variation-2026_11_21; renderTileColumn16()
+      keeps its own integer-coerced port.
+  - id: "horizon-gradient-variation-2026_11_21"
+    severity: "render"
+    status: "resolved"
+    java: >
+      i.java:7377-7404 compares paramInt2 with H*70/100 using Java integer
+      division (53 with H=76). When it matches, four extra scanlines are drawn
+      with a random brightness factor 95..105 and random x endpoints from
+      paramInt6..paramInt10. i.java:7315-7317 also truncates the per-channel
+      deltas, and i.java:7412 adds a random edge-scatter offset.
+    javascript: >
+      _drawTileGradient() compared paramInt2 against 53.2, so the horizon
+      branch never ran. Its fallback variation used fixed 95/98/101/104 factors
+      and computed both endpoints as the same value for b=1..3, producing
+      zero-length lines. The channel deltas were fractional, and the lateral
+      scatter branch read this.h.a (this.h is the numeric heading) and was
+      hidden by a catch. Now the comparison and deltas use Math.trunc(), the
+      variation and scatter use a local LCG seeded by the strip (not this.a),
+      and the scatter guard uses tuftEnabled as in renderTileColumn16().
+    impact: >
+      Node probe of the sky strip at y=53 now emits the base line plus four
+      nonzero variation lines instead of one; resource probes are unchanged
+      (res9/res17/res57 present where expected, res18 stays at 0, panorama 16
+      and sprites 360-374 untouched). `node --check` and npm test (33/33) pass;
+      no clock, movement, HUD or log changes.
   - id: "random-int-source"
     severity: "gameplay-determinism"
     status: "confirmed-divergence"
@@ -1114,4 +1166,54 @@ log_analysis_2026_11_18:
       Simulación Node sobre las 1200 casillas: 4136 transiciones válidas
       revisadas, 4135 avanzan. La única excepción es (27,39), la casilla
       final/victoria, que bloquea por diseño.
+
+  ground_sprites_by_visible_tile_2026_11_26:
+    source: "Reporte del usuario: 'guiandome en el minimapa, las zonas amarillas y cafes representadas en minimapa no se renderizan', 'se pinta como el color del minimapa, no renderiza los sprites que le corresponden' y 'agua renderizada pero con el suelo amarillo sin sprite'."
+    diagnosis: >
+      i.java:4045-4052 (c(Graphics)) rellena H..169 con dos degradados planos
+      y i.java:4409 elige el tipo de suelo de una sola casilla (d,e). El tinte
+      plano fue rechazado dos veces: el usuario quiere ver los sprites de suelo
+      159/174/189/204 (y variantes) en toda la banda, no un color.
+    change: >
+      Se retira hGroundTint/_getGroundTintColor. _paintGroundBands() conserva
+      los dos degradados de i.java:4045-4052 como fondo (sin ellos se veía el
+      negro del canvas en los huecos entre sprites) y encima tesela el rango
+      H..169 con cinco franjas de 35 px (la última de 36) que muestrean un
+      abanico centrado en el jugador, recortan el clip y llaman a
+      _drawTerrainColumn() con la casilla de cada franja, usando hGroundProb
+      para elegir 159/174/189/204 y variantes. El agua sigue dibujándose
+      después desde _drawEntityClip, así que no se tapa. Se retira
+      _drawTerrainColumnsByTile() y sus pases 0/1 en _renderEntitiesInner()
+      porque duplicaban los sprites en H+J..169. No se tocan cielo, sprites
+      360-374, agua, reloj ni HUD.
+    verification:
+      - "Sonda Node en (13,29) tipo 3: franja central x=70..105 usa casilla (13,29) y dibuja 159/160/161/174/175/176/189/190/191/204/205/206; franja izquierda x=0..35 usa (11,28) tipo 0."
+      - "Clip restaurado a 0,0,176,208 al terminar las cinco franjas."
+      - "Instrumentación temporal _dbgRequestedIds retirada de src/resources/c.js; grep sin coincidencias."
+      - "node --check src/game/i.js -> OK."
+      - "npm test -> 33/33."
+
+  drawn_sprite_log_2026_11_26:
+    source: "Reporte del usuario: 'remueve el log y crea otro que imprima el sprite exacto que se muestra en pantalla, horizonte, suelo, todos, clasificalos con nombre ejemplo montaña='."
+    diagnosis: >
+      El log anterior ([mapa] sprite del mapa se movió) comparaba conjuntos de
+      IDs entre pasos y no decía qué sprite se veía realmente en pantalla.
+    change: >
+      Se retiran _markMapSpriteMove, _flushMapSpriteMove, _mapSpritePending,
+      _mapSpriteSnapshot, trackMapSprite y las variables fromX/fromY.
+      src/resources/c.js expone startSpriteCapture()/endSpriteCapture() y
+      drawSprite() anota el sprite sólo cuando supera clipRect y llega a
+      drawImage. _renderAll() abre la captura y cierra con un único
+      console.log por frame: [sprites] horizonte[...] suelo[...] (más
+      entidades/decor/hud/otros cuando hay) | todos=IDs ordenados. Las tablas
+      spriteLabels/spriteNameById/spriteGroupByLabel nombran los IDs
+      (montaña=262-265, luna=374, arbol_dia=360-366, arbol_noche=367-373,
+      cabaña=235-243, suelo_olivo=159-161, pasto=174-176,
+      tierra_cafe=189-191, tierra_amarilla=204-206, matorral=385-406,
+      maleza=407-416). No se dibuja texto ni HUD en el canvas.
+    verification:
+      - "i.js tiene exactamente un console.log: el nuevo [sprites]."
+      - "grep sin _mapSpritePending/_mapSpriteSnapshot/_markMapSpriteMove/_flushMapSpriteMove/trackMapSprite/fromX/fromY/TEMP AUDIT/_dbgRequestedIds en src/."
+      - "node --check src/game/i.js -> OK."
+      - "npm test -> 33/33."
 
